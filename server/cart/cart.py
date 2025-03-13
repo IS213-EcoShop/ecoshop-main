@@ -68,10 +68,10 @@ def get_product_by_id(product_id):
     return product
 
 
-@app.route('/cart/update-or-add', methods=['POST'])
-def update_or_add_to_cart():
+@app.route('/cart/update', methods=['POST'])
+def update():
     """
-    Add or update product quantity in the cart.
+    update product quantity in the cart.
     ---
     parameters:
       - name: productId
