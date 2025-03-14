@@ -1,5 +1,4 @@
 # Ignore environment files
-server/payment/.env
 server/.env
 
 # Ignore Python cache files

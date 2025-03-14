@@ -1,5 +1,4 @@
-flask
-flask_sqlalchemy
-mysql-connector-python
-stripe
-python-dotenv
+Flask==3.1.0
+stripe==11.6.0
+python-dotenv==1.0.1
+supabase==2.13.0
