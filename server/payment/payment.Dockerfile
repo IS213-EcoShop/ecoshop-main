@@ -1,9 +1,7 @@
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-ENV FLASK_APP=payment.py
-ENV FLASK_RUN_HOST=0.0.0.0
-EXPOSE 5001
-CMD ["python", "payment.py"]
+FROM python:3-slim
+WORKDIR /usr/src/app
+COPY requirements.txt ./
+RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY ./payment.py ./
+EXPOSE 5202
+CMD ["python", "./payment.py"]
