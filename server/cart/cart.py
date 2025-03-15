@@ -79,7 +79,7 @@ def update():
             "name": product["Name"],
             "price": product_price,
             "quantity": quantity,
-            "image_url": product["Image"]
+            "image_url": product["ImageURL"]
         }
 
     total_price = sum(item["quantity"] * item["price"] for item in cart.values())

@@ -50,10 +50,10 @@ def processPlaceOrder():
 
     print("\n----- Invoking the Payment Microservice -----")
     payment_payload = {
-        "userID": cart_result.get("userID", 1),  # Assuming userID is in the cart response
+        "userID": cart_result.get("userID", 1),  # For now there is no authentication in place, so assume use userID as 1 for testing purposes
         "amount": total_price,
         "currency": "SGD",
-        "transactionDesc": "Eco-Friendly Purchase"
+        "cart": updated_cart
     }
 
     payment_result = invoke_http(PAYMENT_SERVICE_URL, method='POST', json=payment_payload)

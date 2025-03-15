@@ -27,7 +27,7 @@ def create_payment():
     user_id = data.get('userID')
     amount = data.get('amount')
     currency = data.get('currency', 'SGD')
-    description = data.get('transactionDesc', 'Eco-Friendly Purchase')
+    cart_details = data.get('cart', [])
 
     try:
         # Create a Stripe Checkout session
@@ -36,7 +36,7 @@ def create_payment():
             line_items=[{
                 'price_data': {
                     'currency': currency,
-                    'product_data': {'name': description},
+                    'product_data': {'name': 'Eco-friendly Purchase'},
                     'unit_amount': int(amount * 100)  # Stripe requires amount in cents
                 },
                 'quantity': 1,
@@ -51,10 +51,10 @@ def create_payment():
         # Store payment in Supabase
         response = supabase.table("payments").insert({
             "userID": user_id,
-            "transactionDesc": description,
             "amount": amount,
             "currency": currency,
             "payment_status": "pending",
+            "cart_details": json.dumps(cart_details),
             "stripe_payment_id": session.id,
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
