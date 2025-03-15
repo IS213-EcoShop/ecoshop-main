@@ -82,7 +82,6 @@ def get_user_payments(userID):
     return jsonify(response.data), 200
 
 # Handle Stripe Webhook
-# Handle Stripe Webhook
 @app.route('/payment/webhook', methods=['POST'])
 def stripe_webhook():
     payload = request.data
@@ -125,4 +124,4 @@ def stripe_webhook():
 
     
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5202, debug=True)
