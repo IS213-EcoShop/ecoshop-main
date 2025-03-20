@@ -1,1 +1,81 @@
-##
+networks:
+  esd-net:
+    driver: bridge
+    name: esd-net
+
+services:
+
+  ###################################
+  # Cart: The Cart microservice
+  ###################################
+  cart:
+    build:
+      context: ./server/cart 
+      dockerfile: cart.Dockerfile
+    image: mitchshona/cart:latest
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5201:5201"
+    networks:
+      - esd-net
+
+  ###################################
+  # Cart-Product: The Cart-Product composite microservice
+  ###################################
+  cart_product:
+    build:
+      context: ./server
+      dockerfile: ./cart_product/cart_product.Dockerfile
+    image: mitchshona/cart_product:latest
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5300:5300"
+    networks:
+      - esd-net
+    depends_on:
+      - cart
+
+  ###################################
+  # Payment: The Payment microservice
+  ###################################
+  payment:
+    build:
+      context: ./server/payment
+      dockerfile: payment.Dockerfile
+    image: mitchshona/payment:latest
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    env_file:
+      - ./server/.env
+    ports:
+      - "5202:5202"
+    networks:
+      - esd-net
+
+  ###################################
+  # Place Order: The Place Order composite microservice
+  ###################################
+  place_order:
+    build:
+      context: ./server
+      dockerfile: ./place_order/place_order.Dockerfile
+    image: mitchshona/place_order:latest
+    restart: always
+    depends_on:
+      - cart
+      - payment
+      - cart_product
+    environment:
+      PYTHONUNBUFFERED: 1
+      CART_SERVICE_URL: http://cart:5201/cart
+      PAYMENT_SERVICE_URL: http://payment:5202/payment
+      CART_PRODUCT_SERVICE_URL: http://cart_product:5300/cart-product
+    ports:
+      - "5301:5301"
+    networks:
+      - esd-net
