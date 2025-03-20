@@ -1,21 +1,31 @@
 import os
 import sys
 from flask import Flask, request, jsonify
-from ..utils.invokes import invoke_http
+from utils.invokes import invoke_http
 
 app = Flask(__name__)
 
 # Microservice URLs
-CART_SERVICE_URL = "http://localhost:5201/cart"  # Cart service - Retrieve cart
-PAYMENT_SERVICE_URL = "http://localhost:5202/payment"  # Payment service
+CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
+PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
 
-@app.route("/place_order", methods=['GET'])
+@app.route("/place_order", methods=['POST'])
 def place_order():
     """ Handles the entire order process: Retrieve Cart --> Payment Creation """
     
     try:
+        # Retrieve Street Address and Postal Code from the request
+        street_address = request.json.get("street_address")
+        postal_code = request.json.get("postal_code")
+        
+        if not street_address or not postal_code:
+            return jsonify({
+                "code": 400,
+                "message": "Street Address and Postal Code are required."
+            }), 400
+
         # Process the order through Cart and Payment Microservices
-        result = processPlaceOrder()
+        result = processPlaceOrder(street_address, postal_code)
         return jsonify(result), result["code"]
     
     except Exception as e:
@@ -30,7 +40,7 @@ def place_order():
             "message": "place_order.py internal error: " + ex_str
         }), 500
 
-def processPlaceOrder():
+def processPlaceOrder(street_address, postal_code):
     """ Retrieve cart and process the payment """
 
     print("\n----- Invoking cart microservice to retrieve the cart -----")
@@ -53,7 +63,9 @@ def processPlaceOrder():
         "userID": cart_result.get("userID", 1),  # For now there is no authentication in place, so assume use userID as 1 for testing purposes
         "amount": total_price,
         "currency": "SGD",
-        "cart": updated_cart
+        "cart": updated_cart,
+        "street_address": street_address,
+        "postal_code": postal_code
     }
 
     payment_result = invoke_http(PAYMENT_SERVICE_URL, method='POST', json=payment_payload)
@@ -65,7 +77,11 @@ def processPlaceOrder():
             "code": 201,
             "message": "Order placed successfully",
             "order_details": updated_cart,
-            "payment_details": payment_result
+            "payment_details": payment_result,
+            "delivery_address": {
+                "street_address": street_address,
+                "postal_code": postal_code
+            }
         }
     else:
         return {
@@ -75,7 +91,5 @@ def processPlaceOrder():
             "payment_result": payment_result
         }
 
-
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5200, debug=True)
+    app.run(host='0.0.0.0', port=5301, debug=True)
