@@ -99,6 +99,14 @@ def view_cart():
     total_price = sum(item["quantity"] * item["price"] for item in cart.values())
     return jsonify({"code": 200, "cart": cart, "total_price": total_price}), 200
 
+@app.route('/cart/clear', methods=['POST'])
+def clear_cart():
+    """
+    Clear all items from cart after successful payment
+    """
+    cart.clear()
+    return jsonify({"code":200, "messgae": "Cart has been successfully cleared."})
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)  # Enable logging at debug level

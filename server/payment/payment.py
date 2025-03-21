@@ -28,8 +28,6 @@ def create_payment():
     amount = data.get('amount')
     currency = data.get('currency', 'SGD')
     cart_details = data.get('cart', [])
-    street_address = data.get('street_address')
-    postal_code = data.get('postal_code')
 
     try:
         # Create a Stripe Checkout session
@@ -57,8 +55,6 @@ def create_payment():
             "currency": currency,
             "payment_status": "pending",
             "cart_details": json.dumps(cart_details),
-            "street_address": street_address,
-            "postal_code": postal_code,
             "stripe_payment_id": session.id,
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
