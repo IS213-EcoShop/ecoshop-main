@@ -10,8 +10,8 @@ services:
   ###################################
   cart:
     build:
-      context: ./server/cart 
-      dockerfile: cart.Dockerfile
+      context: ./server
+      dockerfile: ./cart/cart.Dockerfile
     image: mitchshona/cart:latest
     restart: always
     environment:
@@ -44,8 +44,8 @@ services:
   ###################################
   payment:
     build:
-      context: ./server/payment
-      dockerfile: payment.Dockerfile
+      context: ./server
+      dockerfile: ./payment/payment.Dockerfile
     image: mitchshona/payment:latest
     restart: always
     environment:
