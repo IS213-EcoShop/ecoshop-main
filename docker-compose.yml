@@ -52,7 +52,7 @@ services:
     ports:
       - "5300:5300"
     networks:
-      - esd-net
+      - esd-net  
 
   payment:
     build:
@@ -90,3 +90,18 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  intermediary:
+    build:
+      context: ./server
+      dockerfile: ./intermediary/intermediary.Dockerfile
+    image: mitchshona/intermediary:latest
+    restart: always
+    environment:
+      PYTHONBUFFERED: 1
+      PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
+    networks:
+      - esd-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy    
