@@ -8,6 +8,9 @@ app = Flask(__name__)
 # In-memory cart storage
 cart = {}
 
+ORDER_EXCHANGE_NAME = "order_topic"
+CART_BINDING_KEY = "order.*"
+
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
     """ Add a product to the cart or update quantity. """
@@ -101,7 +104,7 @@ def callback(ch, method, properties, body):
     user_id = message.get('userID')
     action = message.get('action')
 
-    print(f"Received message: {message}")
+    print(f"Received message from {ORDER_EXCHANGE_NAME}: {message}")
 
     if action == "clear_cart":
         # Clear the cart for the given user
@@ -115,11 +118,13 @@ def consume_order_messages():
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    # Declare the queue to ensure it's created
-    channel.queue_declare(queue='order_queue', durable=True)
+    # Declare the exchange and queue to ensure they're created
+    channel.exchange_declare(exchange=ORDER_EXCHANGE_NAME, exchange_type='topic', durable=True)
+    channel.queue_declare(queue="cart_queue", durable=True)
+    channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="cart_queue", routing_key=CART_BINDING_KEY)
 
     # Set up the consumer with the callback function
-    channel.basic_consume(queue='order_queue', on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue="cart_queue", on_message_callback=callback, auto_ack=True)
 
     print("Waiting for messages from RabbitMQ...")
     channel.start_consuming()

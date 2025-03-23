@@ -20,6 +20,11 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # Stripe API Key
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+# Initialize AMQP variables
+exchange_name = "payment_exchange"
+queue_name = "payment_queue"
+routing_key = "payment_success"
+
 # Create a Payment Session
 @app.route('/payment', methods=['POST'])
 def create_payment():
@@ -120,8 +125,12 @@ def stripe_webhook():
             connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
             channel = connection.channel()
 
-            # Ensure the payment queue exists
-            channel.queue_declare(queue='payment_queue')
+            # Declare a direct exchange
+            channel.exchange_declare(exchange=exchange_name, exchange_type='direct')
+
+            # Declare a queue and bind it to the exchange with a routing key
+            channel.queue_declare(queue=queue_name, durable=True)
+            channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=routing_key)
 
             # Send the message to RabbitMQ
             message = {
@@ -129,12 +138,13 @@ def stripe_webhook():
                 'status': 'successful',
                 'userID': response.data[0]['userID']
             }
+            
+            print(f"Publishing message to direct exchange '{exchange_name}' with routing key='{routing_key}'")
             channel.basic_publish(
-                exchange='',
-                routing_key='payment_queue',
+                exchange=exchange_name,
+                routing_key=routing_key,
                 body=json.dumps(message)
             )
-            print("Publishing message to RabbitMQ with routing key=payment_queue")
             
             connection.close()
 

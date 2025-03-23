@@ -12,6 +12,18 @@ app = Flask(__name__)
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
 PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
 
+# Initialize AMQP variables for consumption from payment.py
+EXCHANGE_NAME = "payment_exchange" 
+QUEUE_NAME = "payment_queue"
+ROUTING_KEY = "payment_success"
+
+# Initialize AMQP variables for publishing to cart
+ORDER_EXCHANGE_NAME = "order_topic"
+
+# Initialize Routing Keys
+CART_ROUTING_KEY = "order.clear"
+PRODUCT_ROUTING_KEY = "order.reduce"
+
 @app.route("/place_order", methods=['POST'])
 def place_order():
     """ Handles the entire order process: Retrieve Cart --> Payment Creation """
@@ -88,7 +100,7 @@ def callback(ch, method, properties, body):
     status = message.get('status')
     user_id = message.get('userID')
 
-    print(f"Received message: {message}")
+    print(f"Received message from {QUEUE_NAME}: {message}")
 
     if status == "successful":
         # Prepare message to be sent to cart service
@@ -97,21 +109,28 @@ def callback(ch, method, properties, body):
             "action": "clear_cart"
         }
 
-        # send message to the "order_queue" for cart clearing
+        # Establishing connection to AMQP to publish messages to cart,product,email,delivery (topic)
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
         channel = connection.channel()
 
-        # Declare the queue to ensure it exists
-        channel.queue_declare(queue='order_queue', durable=True)
+        # Declare the exchange (ensure it exists)
+        channel.exchange_declare(exchange=ORDER_EXCHANGE_NAME, exchange_type='topic', durable=True)
 
+        # Declare the cart queue and bind it to the exchange 
+        channel.queue_declare(queue="cart_queue", durable=True)
+        channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="cart_queue", routing_key=CART_ROUTING_KEY)
+
+        print(f"Publishing message to clear cart for user {user_id}")
         # Send the message to the queue
         channel.basic_publish(
-            exchange='',
-            routing_key='order_queue',
-            body=json.dumps(cart_message)
+            exchange=ORDER_EXCHANGE_NAME,
+            routing_key=CART_ROUTING_KEY,
+            body=json.dumps(cart_message),
+            properties=pika.BasicProperties(
+                delivery_mode=2 
+            )
         )
 
-        print(f"Sent message to clear cart for user {user_id}")
         connection.close()
 
 # Start consuming messages from RabbitMQ
@@ -119,13 +138,17 @@ def consume_payment_messages():
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
 
-    # Declare the queue to make sure it's created
-    channel.queue_declare(queue='payment_queue')
+    # Declare the exchange (ensure it exists)
+    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct')
+
+    # Declare and bind the queue to the exchange with the routing key
+    channel.queue_declare(queue=QUEUE_NAME, durable=True)
+    channel.queue_bind(exchange=EXCHANGE_NAME, queue=QUEUE_NAME, routing_key=ROUTING_KEY)
 
     # Set up the consumer with the callback function
-    channel.basic_consume(queue='payment_queue', on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=True)
 
-    print("Waiting for messages from RabbitMQ...")
+    print(f"Waiting for messages from '{EXCHANGE_NAME}' with routing key '{ROUTING_KEY}'...")
     channel.start_consuming()
 
 # Function to run the Flask app
