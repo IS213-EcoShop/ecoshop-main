@@ -9,7 +9,7 @@ app = Flask(__name__)
 cart = {}
 
 ORDER_EXCHANGE_NAME = "order_topic"
-CART_BINDING_KEY = "order.*"
+CART_BINDING_KEY = "order.clear"
 
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
@@ -43,13 +43,12 @@ def add_to_cart():
     total_price = sum(item["quantity"] * item["price"] for item in cart.values())
     return jsonify({"code": 200, "message": "Cart updated successfully", "cart": cart, "total_price": total_price}), 200
 
-
 @app.route('/cart/decrement', methods=['POST'])
-def decrement_quantity():
-    """ Decrease product quantity in the cart by a given amount. """
+def decrement_cart():
+    """ Decrease the quantity of a product in the cart or remove it. """
     data = request.json
     product_id = data.get("productId")
-    quantity = data.get("quantity")  # Allow decrementing by a specified amount
+    quantity = data.get("quantity")
 
     if not isinstance(product_id, int) or product_id <= 0:
         return jsonify({"code": 400, "error": "Invalid productId"}), 400
@@ -57,34 +56,17 @@ def decrement_quantity():
     if not isinstance(quantity, int) or quantity <= 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
 
-    if product_id in cart:
-        if cart[product_id]["quantity"] > quantity:
-            cart[product_id]["quantity"] -= quantity
-        else:
-            del cart[product_id]  # Remove product if quantity reaches 0
-        
-        total_price = sum(item["quantity"] * item["price"] for item in cart.values())
-        return jsonify({"code": 200, "message": "Product quantity decreased", "cart": cart, "total_price": total_price}), 200
-    else:
+    if product_id not in cart:
         return jsonify({"code": 404, "error": "Product not found in cart"}), 404
 
-
-@app.route('/cart/remove', methods=['DELETE'])
-def remove_from_cart():
-    """ Remove product from cart completely. """
-    data = request.json
-    product_id = data.get("productId")
-
-    if not isinstance(product_id, int) or product_id <= 0:
-        return jsonify({"code": 400, "error": "Invalid productId"}), 400
-
-    if product_id in cart:
+    # Decrease quantity or remove product if quantity goes to zero or below
+    if cart[product_id]["quantity"] > quantity:
+        cart[product_id]["quantity"] -= quantity
+    else:
         del cart[product_id]
-        total_price = sum(item["quantity"] * item["price"] for item in cart.values())
-        return jsonify({"code": 200, "message": "Product removed from cart", "cart": cart, "total_price": total_price}), 200
-    else:
-        return jsonify({"code": 404, "error": "Product not found in cart"}), 404
 
+    total_price = sum(item["quantity"] * item["price"] for item in cart.values())
+    return jsonify({"code": 200, "message": "Cart updated successfully", "cart": cart, "total_price": total_price}), 200
 
 @app.route('/cart', methods=['GET'])
 def view_cart():
@@ -100,18 +82,26 @@ def clear_cart():
 
 # This function will process messages from RabbitMQ
 def callback(ch, method, properties, body):
-    message = json.loads(body)
-    user_id = message.get('userID')
-    action = message.get('action')
+    try:
+        message = json.loads(body)
+        print(f"Received message: {message}")
+        
+        if isinstance(message, list):
+            print("Message is a list. Processing first item.")
+            message = message[0]  # Process the first item in the list
 
-    print(f"Received message from {ORDER_EXCHANGE_NAME}: {message}")
+        action = message.get('action')
+        
+        if action == "clear_cart":
+            # Clear the cart
+            print("Clearing the cart...")
+            cart.clear()
+            print("Cart has been cleared.")
+        else:
+            print(f"Unknown action: {action}")
+    except Exception as e:
+        print(f"Error processing message: {e}")
 
-    if action == "clear_cart":
-        # Clear the cart for the given user
-        print(f"Clearing cart for user {user_id}...")
-        cart.clear()
-        # Respond to confirm the cart is cleared
-        print(f"Cart cleared for user {user_id}")
 
 # Start consuming messages from RabbitMQ
 def consume_order_messages():

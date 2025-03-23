@@ -109,29 +109,51 @@ def callback(ch, method, properties, body):
             "action": "clear_cart"
         }
 
-        # Establishing connection to AMQP to publish messages to cart,product,email,delivery (topic)
+        # Retrieve cart details from the service
+        cart_result = invoke_http(CART_SERVICE_URL, method='GET')
+        if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
+            print("Failed to retrieve cart for reducing stock")
+            return
+
+        updated_cart = cart_result.get("cart")  # Extract cart details
+
+        # Prepare message to be sent to product service
+        product_message = [
+            {"productId": int(product["productId"]), "stock": int(product["quantity"])}
+            for product in updated_cart.values()
+        ]
+
+        # Establish connection to AMQP
         connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
         channel = connection.channel()
 
-        # Declare the exchange (ensure it exists)
+        # Declare the exchange
         channel.exchange_declare(exchange=ORDER_EXCHANGE_NAME, exchange_type='topic', durable=True)
 
-        # Declare the cart queue and bind it to the exchange 
+        # Publish message to clear the cart
         channel.queue_declare(queue="cart_queue", durable=True)
         channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="cart_queue", routing_key=CART_ROUTING_KEY)
-
         print(f"Publishing message to clear cart for user {user_id}")
-        # Send the message to the queue
         channel.basic_publish(
             exchange=ORDER_EXCHANGE_NAME,
             routing_key=CART_ROUTING_KEY,
             body=json.dumps(cart_message),
-            properties=pika.BasicProperties(
-                delivery_mode=2 
-            )
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+        # Publish message to reduce stock in the product service
+        channel.queue_declare(queue="product_queue", durable=True)
+        channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="product_queue", routing_key=PRODUCT_ROUTING_KEY)
+        print(f"Publishing message to reduce stock for products: {product_message}")
+        channel.basic_publish(
+            exchange=ORDER_EXCHANGE_NAME,
+            routing_key=PRODUCT_ROUTING_KEY,
+            body=json.dumps(product_message),
+            properties=pika.BasicProperties(delivery_mode=2)
         )
 
         connection.close()
+
 
 # Start consuming messages from RabbitMQ
 def consume_payment_messages():
