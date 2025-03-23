@@ -1,6 +1,9 @@
 import os
 import sys
 from flask import Flask, request, jsonify
+import pika
+import json
+import threading
 from utils.invokes import invoke_http
 
 app = Flask(__name__)
@@ -8,7 +11,6 @@ app = Flask(__name__)
 # Microservice URLs
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
 PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
-
 
 @app.route("/place_order", methods=['POST'])
 def place_order():
@@ -41,7 +43,7 @@ def place_order():
 def processPlaceOrder(user_id):
     """ Retrieve cart and process the payment """
 
-    print("\n----- Invoking cart microservice to retrieve the cart -----")
+    print("\n========== Invoking cart microservice to retrieve the cart ==========")
     cart_result = invoke_http(CART_SERVICE_URL, method='GET')
 
     if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
@@ -61,7 +63,7 @@ def processPlaceOrder(user_id):
         "cart": updated_cart
     }
 
-    print("\n----- Invoking the Payment Microservice -----")
+    print("\n========== Invoking the Payment Microservice ==========")
     payment_result = invoke_http(PAYMENT_SERVICE_URL, method='POST', json=payment_payload)
 
     if payment_result.get("paymentID"):
@@ -78,7 +80,62 @@ def processPlaceOrder(user_id):
             "cart_result": cart_result,
             "payment_result": payment_result
         }
-    
+
+# This function will be used to process messages from RabbitMQ
+def callback(ch, method, properties, body):
+    message = json.loads(body)
+    payment_id = message.get('paymentID')
+    status = message.get('status')
+    user_id = message.get('userID')
+
+    print(f"Received message: {message}")
+
+    if status == "successful":
+        # Prepare message to be sent to cart service
+        cart_message = {
+            "userID": user_id,
+            "action": "clear_cart"
+        }
+
+        # send message to the "order_queue" for cart clearing
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+        channel = connection.channel()
+
+        # Declare the queue to ensure it exists
+        channel.queue_declare(queue='order_queue', durable=True)
+
+        # Send the message to the queue
+        channel.basic_publish(
+            exchange='',
+            routing_key='order_queue',
+            body=json.dumps(cart_message)
+        )
+
+        print(f"Sent message to clear cart for user {user_id}")
+        connection.close()
+
+# Start consuming messages from RabbitMQ
+def consume_payment_messages():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    # Declare the queue to make sure it's created
+    channel.queue_declare(queue='payment_queue')
+
+    # Set up the consumer with the callback function
+    channel.basic_consume(queue='payment_queue', on_message_callback=callback, auto_ack=True)
+
+    print("Waiting for messages from RabbitMQ...")
+    channel.start_consuming()
+
+# Function to run the Flask app
+def run_flask_app():
+    app.run(host='0.0.0.0', port=5301)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5301, debug=True)
+    # Start the Flask app in a separate thread
+    flask_thread = threading.Thread(target=run_flask_app)
+    flask_thread.start()
+
+    # Start the RabbitMQ consumer in the main thread
+    consume_payment_messages()

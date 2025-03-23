@@ -1,18 +1,16 @@
-import logging
-from flask import Flask, request, jsonify
-from flasgger import Swagger
+import threading
+import pika
+import json
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-swagger = Swagger(app)  # Initialize Swagger with Flask app
 
 # In-memory cart storage
 cart = {}
 
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
-    """
-    Add a product to the cart or update quantity.
-    """
+    """ Add a product to the cart or update quantity. """
     data = request.json
     product_id = data.get("productId")
     quantity = data.get("quantity")
@@ -45,10 +43,7 @@ def add_to_cart():
 
 @app.route('/cart/decrement', methods=['POST'])
 def decrement_quantity():
-    """
-    Decrease product quantity in the cart by a given amount. 
-    If quantity reaches 0, remove the product.
-    """
+    """ Decrease product quantity in the cart by a given amount. """
     data = request.json
     product_id = data.get("productId")
     quantity = data.get("quantity")  # Allow decrementing by a specified amount
@@ -71,12 +66,9 @@ def decrement_quantity():
         return jsonify({"code": 404, "error": "Product not found in cart"}), 404
 
 
-
 @app.route('/cart/remove', methods=['DELETE'])
 def remove_from_cart():
-    """
-    Remove product from cart completely.
-    """
+    """ Remove product from cart completely. """
     data = request.json
     product_id = data.get("productId")
 
@@ -93,21 +85,53 @@ def remove_from_cart():
 
 @app.route('/cart', methods=['GET'])
 def view_cart():
-    """
-    Get all items in the cart and total price.
-    """
+    """ Get all items in the cart and total price. """
     total_price = sum(item["quantity"] * item["price"] for item in cart.values())
     return jsonify({"code": 200, "cart": cart, "total_price": total_price}), 200
 
-@app.route('/cart/clear', methods=['POST'])
+@app.route('/cart/clear', methods=['DELETE'])
 def clear_cart():
-    """
-    Clear all items from cart after successful payment
-    """
+    """ Clear all items from cart after successful payment """
     cart.clear()
-    return jsonify({"code":200, "messgae": "Cart has been successfully cleared."})
+    return jsonify({"code": 200, "message": "Cart has been successfully cleared."})
 
+# This function will process messages from RabbitMQ
+def callback(ch, method, properties, body):
+    message = json.loads(body)
+    user_id = message.get('userID')
+    action = message.get('action')
+
+    print(f"Received message: {message}")
+
+    if action == "clear_cart":
+        # Clear the cart for the given user
+        print(f"Clearing cart for user {user_id}...")
+        cart.clear()
+        # Respond to confirm the cart is cleared
+        print(f"Cart cleared for user {user_id}")
+
+# Start consuming messages from RabbitMQ
+def consume_order_messages():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    # Declare the queue to ensure it's created
+    channel.queue_declare(queue='order_queue', durable=True)
+
+    # Set up the consumer with the callback function
+    channel.basic_consume(queue='order_queue', on_message_callback=callback, auto_ack=True)
+
+    print("Waiting for messages from RabbitMQ...")
+    channel.start_consuming()
+
+# Function to run the Flask app
+def run_flask_app():
+    app.run(host='0.0.0.0', port=5201)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)  # Enable logging at debug level
-    app.run(host='0.0.0.0', port=5201, debug=True)
+    # Start the Flask app in a separate thread
+    flask_thread = threading.Thread(target=run_flask_app)
+    flask_thread.start()
+
+    # Start the RabbitMQ consumer in the main thread
+    consume_order_messages()

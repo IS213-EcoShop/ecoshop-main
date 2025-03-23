@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime, timezone
+import pika
+import json
 
 # Load environment variables
 load_dotenv()
@@ -66,7 +68,6 @@ def create_payment():
         print(f"Error in create_payment(): {str(e)}")  # Log the full error
         return jsonify({'error': str(e)}), 500
 
-    
 # Retrieve a Payment by ID
 @app.route('/payment/<string:paymentID>', methods=['GET'])
 def get_payment(paymentID):
@@ -80,7 +81,7 @@ def get_payment(paymentID):
 def get_user_payments(userID):
     response = supabase.table("payments").select("*").eq("userID", userID).execute()
     return jsonify(response.data), 200
-
+    
 # Handle Stripe Webhook
 @app.route('/payment/webhook', methods=['POST'])
 def stripe_webhook():
@@ -114,6 +115,29 @@ def stripe_webhook():
             # Update payment status in Supabase
             update_response = supabase.table("payments").update({"payment_status": "successful"}).eq("stripe_payment_id", session['id']).execute()
             print(f"Updated payment status in Supabase: {update_response}")
+
+            # Send a message to RabbitMQ (place_order service will consume it)
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+            channel = connection.channel()
+
+            # Ensure the payment queue exists
+            channel.queue_declare(queue='payment_queue')
+
+            # Send the message to RabbitMQ
+            message = {
+                'paymentID': session['id'],
+                'status': 'successful',
+                'userID': response.data[0]['userID']
+            }
+            channel.basic_publish(
+                exchange='',
+                routing_key='payment_queue',
+                body=json.dumps(message)
+            )
+            print("Publishing message to RabbitMQ with routing key=payment_queue")
+            
+            connection.close()
+
         else:
             print(f"No matching payment found in Supabase for session ID: {session['id']}")
 
