@@ -1,6 +1,9 @@
 import os
 import sys
 from flask import Flask, request, jsonify
+import pika
+import json
+import threading
 from utils.invokes import invoke_http
 
 app = Flask(__name__)
@@ -9,27 +12,36 @@ app = Flask(__name__)
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
 PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
 
+# Initialize AMQP variables for consumption from payment.py
+EXCHANGE_NAME = "payment_exchange" 
+QUEUE_NAME = "payment_queue"
+ROUTING_KEY = "payment_success"
+
+# Initialize AMQP variables for publishing to cart
+ORDER_EXCHANGE_NAME = "order_topic"
+
+# Initialize Routing Keys
+CART_ROUTING_KEY = "order.clear"
+PRODUCT_ROUTING_KEY = "order.reduce"
+
 @app.route("/place_order", methods=['POST'])
 def place_order():
     """ Handles the entire order process: Retrieve Cart --> Payment Creation """
     
     try:
-        # Retrieve Street Address and Postal Code from the request
-        street_address = request.json.get("street_address")
-        postal_code = request.json.get("postal_code")
-        
-        if not street_address or not postal_code:
+        # Retrieve userID from the request
+        user_id = request.json.get("userID")
+        if not user_id:
             return jsonify({
                 "code": 400,
-                "message": "Street Address and Postal Code are required."
+                "message": "User ID is required."
             }), 400
 
         # Process the order through Cart and Payment Microservices
-        result = processPlaceOrder(street_address, postal_code)
+        result = processPlaceOrder(user_id)
         return jsonify(result), result["code"]
     
     except Exception as e:
-        # Unexpected error in code
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         ex_str = str(e) + " at " + str(exc_type) + ": " + fname + ": line " + str(exc_tb.tb_lineno)
@@ -40,14 +52,12 @@ def place_order():
             "message": "place_order.py internal error: " + ex_str
         }), 500
 
-def processPlaceOrder(street_address, postal_code):
+def processPlaceOrder(user_id):
     """ Retrieve cart and process the payment """
 
-    print("\n----- Invoking cart microservice to retrieve the cart -----")
+    print("\n========== Invoking cart microservice to retrieve the cart ==========")
     cart_result = invoke_http(CART_SERVICE_URL, method='GET')
-    print("cart_result:", cart_result)
 
-    # Ensure the cart service returns a valid response with code 200 and a non-empty cart
     if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
         return {
             "code": 400,
@@ -58,30 +68,22 @@ def processPlaceOrder(street_address, postal_code):
     updated_cart = cart_result.get("cart")
     total_price = cart_result.get("total_price")
 
-    print("\n----- Invoking the Payment Microservice -----")
     payment_payload = {
-        "userID": cart_result.get("userID", 1),  # For now there is no authentication in place, so assume use userID as 1 for testing purposes
+        "userID": user_id,
         "amount": total_price,
         "currency": "SGD",
-        "cart": updated_cart,
-        "street_address": street_address,
-        "postal_code": postal_code
+        "cart": updated_cart
     }
 
+    print("\n========== Invoking the Payment Microservice ==========")
     payment_result = invoke_http(PAYMENT_SERVICE_URL, method='POST', json=payment_payload)
-    print("Payment result:", payment_result)
 
-    # Check if the payment creation was successful
     if payment_result.get("paymentID"):
         return {
             "code": 201,
-            "message": "Order placed successfully",
+            "message": "Awaiting payment",
             "order_details": updated_cart,
-            "payment_details": payment_result,
-            "delivery_address": {
-                "street_address": street_address,
-                "postal_code": postal_code
-            }
+            "payment_details": payment_result
         }
     else:
         return {
@@ -91,5 +93,94 @@ def processPlaceOrder(street_address, postal_code):
             "payment_result": payment_result
         }
 
+# This function will be used to process messages from RabbitMQ
+def callback(ch, method, properties, body):
+    message = json.loads(body)
+    payment_id = message.get('paymentID')
+    status = message.get('status')
+    user_id = message.get('userID')
+
+    print(f"Received message from {QUEUE_NAME}: {message}")
+
+    if status == "successful":
+        # Prepare message to be sent to cart service
+        cart_message = {
+            "userID": user_id,
+            "action": "clear_cart"
+        }
+
+        # Retrieve cart details from the service
+        cart_result = invoke_http(CART_SERVICE_URL, method='GET')
+        if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
+            print("Failed to retrieve cart for reducing stock")
+            return
+
+        updated_cart = cart_result.get("cart")  # Extract cart details
+
+        # Prepare message to be sent to product service
+        product_message = [
+            {"productId": int(product["productId"]), "stock": int(product["quantity"])}
+            for product in updated_cart.values()
+        ]
+
+        # Establish connection to AMQP
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+        channel = connection.channel()
+
+        # Declare the exchange
+        channel.exchange_declare(exchange=ORDER_EXCHANGE_NAME, exchange_type='topic', durable=True)
+
+        # Publish message to clear the cart
+        channel.queue_declare(queue="cart_queue", durable=True)
+        channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="cart_queue", routing_key=CART_ROUTING_KEY)
+        print(f"Publishing message to clear cart for user {user_id}")
+        channel.basic_publish(
+            exchange=ORDER_EXCHANGE_NAME,
+            routing_key=CART_ROUTING_KEY,
+            body=json.dumps(cart_message),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+        # Publish message to reduce stock in the product service
+        channel.queue_declare(queue="product_queue", durable=True)
+        channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="product_queue", routing_key=PRODUCT_ROUTING_KEY)
+        print(f"Publishing message to reduce stock for products: {product_message}")
+        channel.basic_publish(
+            exchange=ORDER_EXCHANGE_NAME,
+            routing_key=PRODUCT_ROUTING_KEY,
+            body=json.dumps(product_message),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+        connection.close()
+
+
+# Start consuming messages from RabbitMQ
+def consume_payment_messages():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+
+    # Declare the exchange (ensure it exists)
+    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct')
+
+    # Declare and bind the queue to the exchange with the routing key
+    channel.queue_declare(queue=QUEUE_NAME, durable=True)
+    channel.queue_bind(exchange=EXCHANGE_NAME, queue=QUEUE_NAME, routing_key=ROUTING_KEY)
+
+    # Set up the consumer with the callback function
+    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=True)
+
+    print(f"Waiting for messages from '{EXCHANGE_NAME}' with routing key '{ROUTING_KEY}'...")
+    channel.start_consuming()
+
+# Function to run the Flask app
+def run_flask_app():
+    app.run(host='0.0.0.0', port=5301)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5301, debug=True)
+    # Start the Flask app in a separate thread
+    flask_thread = threading.Thread(target=run_flask_app)
+    flask_thread.start()
+
+    # Start the RabbitMQ consumer in the main thread
+    consume_payment_messages()

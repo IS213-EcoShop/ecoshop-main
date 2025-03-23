@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime, timezone
+import pika
+import json
 
 # Load environment variables
 load_dotenv()
@@ -18,6 +20,11 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # Stripe API Key
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+# Initialize AMQP variables
+exchange_name = "payment_exchange"
+queue_name = "payment_queue"
+routing_key = "payment_success"
+
 # Create a Payment Session
 @app.route('/payment', methods=['POST'])
 def create_payment():
@@ -28,8 +35,6 @@ def create_payment():
     amount = data.get('amount')
     currency = data.get('currency', 'SGD')
     cart_details = data.get('cart', [])
-    street_address = data.get('street_address')
-    postal_code = data.get('postal_code')
 
     try:
         # Create a Stripe Checkout session
@@ -57,8 +62,6 @@ def create_payment():
             "currency": currency,
             "payment_status": "pending",
             "cart_details": json.dumps(cart_details),
-            "street_address": street_address,
-            "postal_code": postal_code,
             "stripe_payment_id": session.id,
             "created_at": datetime.now(timezone.utc).isoformat()
         }).execute()
@@ -70,7 +73,6 @@ def create_payment():
         print(f"Error in create_payment(): {str(e)}")  # Log the full error
         return jsonify({'error': str(e)}), 500
 
-    
 # Retrieve a Payment by ID
 @app.route('/payment/<string:paymentID>', methods=['GET'])
 def get_payment(paymentID):
@@ -84,7 +86,7 @@ def get_payment(paymentID):
 def get_user_payments(userID):
     response = supabase.table("payments").select("*").eq("userID", userID).execute()
     return jsonify(response.data), 200
-
+    
 # Handle Stripe Webhook
 @app.route('/payment/webhook', methods=['POST'])
 def stripe_webhook():
@@ -118,6 +120,34 @@ def stripe_webhook():
             # Update payment status in Supabase
             update_response = supabase.table("payments").update({"payment_status": "successful"}).eq("stripe_payment_id", session['id']).execute()
             print(f"Updated payment status in Supabase: {update_response}")
+
+            # Send a message to RabbitMQ (place_order service will consume it)
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+            channel = connection.channel()
+
+            # Declare a direct exchange
+            channel.exchange_declare(exchange=exchange_name, exchange_type='direct')
+
+            # Declare a queue and bind it to the exchange with a routing key
+            channel.queue_declare(queue=queue_name, durable=True)
+            channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=routing_key)
+
+            # Send the message to RabbitMQ
+            message = {
+                'paymentID': session['id'],
+                'status': 'successful',
+                'userID': response.data[0]['userID']
+            }
+            
+            print(f"Publishing message to direct exchange '{exchange_name}' with routing key='{routing_key}'")
+            channel.basic_publish(
+                exchange=exchange_name,
+                routing_key=routing_key,
+                body=json.dumps(message)
+            )
+            
+            connection.close()
+
         else:
             print(f"No matching payment found in Supabase for session ID: {session['id']}")
 
