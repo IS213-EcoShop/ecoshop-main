@@ -90,3 +90,18 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  mission:
+    build:
+      context: ./server
+      dockerfile: ./mission/mission.Dockerfile
+    image: susmart/mission:latest
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    env_file:
+      - ./server/.env
+    ports:
+      - "5401:5401"
+    networks:
+      - esd-net
