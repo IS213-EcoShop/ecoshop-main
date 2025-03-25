@@ -1,82 +1,100 @@
-volumes:
-  rabbitmq_data:
-    name: esd_rabbitmq_data
-
-networks:
-  esd-net:
-    driver: bridge
-
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    hostname: esd-rabbit-1
-    restart: always
+  profile-service:
+    build:
+      context: .
+      dockerfile: profile/Dockerfile
     ports:
-      - "5672:5672"  # AMQP protocol
-      - "15672:15672"  # RabbitMQ Management UI
+      - "5001:5001"
+    env_file:
+      - .env
+    restart: always
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: profile.py
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - ./profile:/usr/src/app
+      - ./utils:/usr/src/app/utils
     networks:
-      - esd-net
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      retries: 3
-      start_period: 10s
-      timeout: 10s
+      - esd-network
+    develop:
+      watch:
+        - action: sync
+          path: ./profile
+          target: ./profile
 
+  send_email:
+    build:
+      context: .
+      dockerfile: send_email/Dockerfile
+    depends_on:
+      - rabbitmq
+    ports:
+      - "5002:5002"
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: send_email.py
+    volumes:
+      - ./send_email:/usr/src/app
+    networks:
+      - esd-network
+    restart: always
+    develop:
+      watch:
+        - action: sync
+          path: ./send_email
+          target: ./send_email
+
+# copied over
   cart:
     build:
-      context: ./server
-      dockerfile: ./cart/cart.Dockerfile
-    image: mitchshona/cart:latest
+      context: .
+      dockerfile: cart/Cart.Dockerfile
     restart: always
     environment:
       PYTHONUNBUFFERED: 1
     ports:
       - "5201:5201"
     networks:
-      - esd-net
+      - esd-network
     depends_on:
       rabbitmq:
         condition: service_healthy  
 
   cart_product:
     build:
-      context: ./server
-      dockerfile: ./cart_product/cart_product.Dockerfile
-    image: mitchshona/cart_product:latest
+      context: .
+      dockerfile: cart_product/cart_product.Dockerfile
     restart: always
     environment:
       PYTHONUNBUFFERED: 1
     ports:
       - "5300:5300"
     networks:
-      - esd-net  
+      - esd-network  
 
   payment:
     build:
-      context: ./server
-      dockerfile: ./payment/payment.Dockerfile
-    image: mitchshona/payment:latest
+      context: .
+      dockerfile: payment/payment.Dockerfile
     restart: always
     environment:
       PYTHONUNBUFFERED: 1
     env_file:
-      - ./server/.env
+      - .env
     ports:
       - "5202:5202"
     networks:
-      - esd-net
+      - esd-network
     depends_on:
       rabbitmq:
         condition: service_healthy 
 
   place_order:
     build:
-      context: ./server
-      dockerfile: ./place_order/place_order.Dockerfile
-    image: mitchshona/place_order:latest
+      context: .
+      dockerfile: place_order/place_order.Dockerfile
     restart: always
     environment:
       PYTHONUNBUFFERED: 1
@@ -86,22 +104,49 @@ services:
     ports:
       - "5301:5301"
     networks:
-      - esd-net
+      - esd-network
     depends_on:
       rabbitmq:
         condition: service_healthy
 
   intermediary:
     build:
-      context: ./server
-      dockerfile: ./intermediary/intermediary.Dockerfile
-    image: mitchshona/intermediary:latest
+      context: .
+      dockerfile: intermediary/intermediary.Dockerfile
     restart: always
     environment:
       PYTHONBUFFERED: 1
       PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
     networks:
-      - esd-net
+      - esd-network
     depends_on:
       rabbitmq:
         condition: service_healthy    
+    
+  rabbitmq:
+    image: "rabbitmq:management"
+    container_name: "rabbitmq"
+    ports:
+      - "15672:15672"  
+      - "5672:5672"    
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - esd-network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      timeout: 10s
+
+volumes:
+  rabbitmq_data:
+
+
+networks:
+  esd-network:
+    driver: bridge
