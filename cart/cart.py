@@ -18,20 +18,26 @@ def add_to_cart():
     """ Add a product to the cart or update quantity. """
     print("==================ADDING TO CART========================")
     data = request.json
+    print(data)
     product_id = data.get("productId")
     product_details = {
         "quantity": data.get("quantity"),
         "price": data.get("price"),
-        "name": data.get("product_name"),
+        "name": data.get("productName"),
         "image_url": data.get("image_url")
     }
     user_id = data.get("user_id")
+    print("completed")
 
     if not isinstance(product_id, int) or product_id <= 0:
         return jsonify({"code": 400, "error": "Invalid productId"}), 400
+    
+    print("completed1")
 
     if not isinstance(product_details["quantity"], int) or product_details["quantity"] <= 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
+    
+    print("completed2")
         
     try:
         response = (
