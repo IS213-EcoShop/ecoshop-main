@@ -1,107 +1,31 @@
-volumes:
-  rabbitmq_data:
-    name: esd_rabbitmq_data
+# version: "3.9"
+# services:
+#   trade-in:
+#     build: ./trade_in
+#     ports:
+#       - "5400:5400"
+#     env_file:
+#       - ./trade_in/.env
 
-networks:
-  esd-net:
-    driver: bridge
+#   verification:
+#     build: ./verification
+#     ports:
+#       - "5401:5401"
+#     env_file:
+#       - ./verification/.env
 
+#version: "3.9"
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    hostname: esd-rabbit-1
-    restart: always
+  trade-in:
+    build: ./trade_in
     ports:
-      - "5672:5672"  # AMQP protocol
-      - "15672:15672"  # RabbitMQ Management UI
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - esd-net
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      retries: 3
-      start_period: 10s
-      timeout: 10s
-
-  cart:
-    build:
-      context: ./server
-      dockerfile: ./cart/cart.Dockerfile
-    image: mitchshona/cart:latest
-    restart: always
-    environment:
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "5201:5201"
-    networks:
-      - esd-net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy  
-
-  cart_product:
-    build:
-      context: ./server
-      dockerfile: ./cart_product/cart_product.Dockerfile
-    image: mitchshona/cart_product:latest
-    restart: always
-    environment:
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "5300:5300"
-    networks:
-      - esd-net  
-
-  payment:
-    build:
-      context: ./server
-      dockerfile: ./payment/payment.Dockerfile
-    image: mitchshona/payment:latest
-    restart: always
-    environment:
-      PYTHONUNBUFFERED: 1
+      - "5400:5400"
     env_file:
-      - ./server/.env
-    ports:
-      - "5202:5202"
-    networks:
-      - esd-net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy 
+      - ./trade_in/.env
 
-  place_order:
-    build:
-      context: ./server
-      dockerfile: ./place_order/place_order.Dockerfile
-    image: mitchshona/place_order:latest
-    restart: always
-    environment:
-      PYTHONUNBUFFERED: 1
-      CART_SERVICE_URL: http://cart:5201/cart
-      PAYMENT_SERVICE_URL: http://payment:5202/payment
-      CART_PRODUCT_SERVICE_URL: http://cart_product:5300/cart-product
+  verification:
+    build: ./verification
     ports:
-      - "5301:5301"
-    networks:
-      - esd-net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  intermediary:
-    build:
-      context: ./server
-      dockerfile: ./intermediary/intermediary.Dockerfile
-    image: mitchshona/intermediary:latest
-    restart: always
-    environment:
-      PYTHONBUFFERED: 1
-      PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
-    networks:
-      - esd-net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy    
+      - "5401:5401"
+    env_file:
+      - ./verification/.env
