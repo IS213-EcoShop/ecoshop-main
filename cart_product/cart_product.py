@@ -58,7 +58,7 @@ def add_to_cart():
         }
 
         cart_response = invoke_http(f"{CART_SERVICE_URL}/add", method="POST", json=cart_payload)
-        print("==============SENT TO CART==============")
+        print("==============ADDED TO CART==============")
         return jsonify(cart_response), cart_response.get("code", 500)
 
     except Exception as e:
@@ -114,12 +114,13 @@ def remove_from_cart():
     try:
         data = request.json
         product_id = data.get("productId")
+        user_id = data.get("user_id")
 
         if not isinstance(product_id, int) or product_id <= 0:
             return jsonify({"code": 400, "error": "Invalid productId"}), 400
 
         # Forward the request to Cart Microservice
-        cart_response = invoke_http(f"{CART_SERVICE_URL}/remove", method="DELETE", json={"productId": product_id})
+        cart_response = invoke_http(f"{CART_SERVICE_URL}/remove", method="PUT", json={"productId": product_id, "user_id" :user_id})
         return jsonify(cart_response), cart_response.get("code", 500)
 
     except Exception as e:

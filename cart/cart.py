@@ -158,7 +158,8 @@ def decrement_cart():
 @app.route('/cart/<user_id>', methods=['GET'])
 def view_cart(user_id):
     """ Get all items in the cart and total price. """
-
+    print("====== GETTING USER'S CART INFO ======")
+    print(user_id)
     try:
         response = (
             supabase.table("carts")

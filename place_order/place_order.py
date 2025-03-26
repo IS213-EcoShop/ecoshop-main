@@ -67,7 +67,7 @@ def processPlaceOrder(user_id):
     """ Retrieve cart and process the payment """
 
     print("\n========== Invoking cart microservice to retrieve the cart ==========")
-    cart_result = invoke_http(CART_SERVICE_URL, method='GET')
+    cart_result = invoke_http(f"{CART_SERVICE_URL}/{int(user_id)}", method='GET')
 
     if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
         return {
