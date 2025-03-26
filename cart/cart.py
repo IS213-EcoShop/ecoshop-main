@@ -26,8 +26,7 @@ def add_to_cart():
 
     if not isinstance(quantity, int) or quantity <= 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
-
-    # If product already exists in cart, update quantity
+        
     if product_id in cart:
         cart[product_id]["quantity"] += quantity
     else:

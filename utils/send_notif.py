@@ -53,6 +53,7 @@ def notify_user(email, message, data={}, routing_key=ROUTING_KEY, exchange_name=
     Main function to notify a user by sending a message to the queue with routing key.
     Takes in email, message, (optional) data, and (optional) routing_key
     """
+    print("======================================================================")
     connection, channel = get_rabbitmq_connection(exchange_name)
     try:
         send_notification(email, channel, message, data, routing_key, exchange_name)

@@ -5,6 +5,7 @@ import pika
 import json
 import threading
 from utils.invokes import invoke_http
+from utils.send_notif import notify_user
 
 app = Flask(__name__)
 
@@ -39,6 +40,16 @@ def place_order():
 
         # Process the order through Cart and Payment Microservices
         result = processPlaceOrder(user_id)
+
+        print("\n========== Notifying User ==========")
+
+        notify_user(
+            email="utkarshtayal90@gmail.com",
+            message="order placed",
+            data={"order_id":1},
+            routing_key="email.order"
+        )
+
         return jsonify(result), result["code"]
     
     except Exception as e:
