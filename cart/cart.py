@@ -2,11 +2,13 @@ import threading
 import pika
 import json
 from flask import Flask, jsonify, request
+from utils.supabase import get_supabase
+
+
+supabase = get_supabase()
+
 
 app = Flask(__name__)
-
-# In-memory cart storage
-cart = {}
 
 ORDER_EXCHANGE_NAME = "order_topic"
 CART_BINDING_KEY = "order.clear"
@@ -14,70 +16,169 @@ CART_BINDING_KEY = "order.clear"
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
     """ Add a product to the cart or update quantity. """
+    print("==================ADDING TO CART========================")
     data = request.json
     product_id = data.get("productId")
-    quantity = data.get("quantity")
-    product_name = data.get("productName")
-    price = data.get("price")
-    image_url = data.get("image_url")
+    product_details = {
+        "quantity": data.get("quantity"),
+        "price": data.get("price"),
+        "name": data.get("product_name"),
+        "image_url": data.get("image_url")
+    }
+    user_id = data.get("user_id")
 
     if not isinstance(product_id, int) or product_id <= 0:
         return jsonify({"code": 400, "error": "Invalid productId"}), 400
 
-    if not isinstance(quantity, int) or quantity <= 0:
+    if not isinstance(product_details["quantity"], int) or product_details["quantity"] <= 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
         
-    if product_id in cart:
-        cart[product_id]["quantity"] += quantity
-    else:
-        # Add new product to cart
-        cart[product_id] = {
-            "productId": product_id,
-            "name": product_name,
-            "price": price,
-            "quantity": quantity,
-            "image_url": image_url
-        }
+    try:
+        response = (
+                supabase.table("carts")
+                .select("*")
+                .eq("user_id", user_id)
+                .execute()
+            )
+        print(response.data)
 
-    total_price = sum(item["quantity"] * item["price"] for item in cart.values())
-    return jsonify({"code": 200, "message": "Cart updated successfully", "cart": cart, "total_price": total_price}), 200
+        if (response.data == []): #add product if no entry
+            try:
+                response = supabase.table('carts').insert({
+                'user_id': user_id,
+                'cart':{product_id : product_details}
+                }).execute()
+                return {"response":response.data}, 200
+            except Exception as e:
+                return {"error" : "Couldn't add to cart", "message":str(e)}, 404
 
-@app.route('/cart/decrement', methods=['POST'])
+        else:
+            existing_cart = response.data[0]["cart"]  # user already has a cart
+            
+            if str(product_id) in existing_cart: 
+                existing_cart[str(product_id)]["quantity"] += product_details["quantity"]
+
+                if existing_cart[str(product_id)]["quantity"] <= 0:
+                    del existing_cart[str(product_id)]
+            else:
+                existing_cart[str(product_id)] = product_details 
+
+            try:
+                response = (
+                    supabase.table("carts")
+                    .update({"cart": existing_cart})
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+
+                total_price = sum(item["quantity"] * item["price"] for item in existing_cart.values())
+
+                return jsonify({"code": 200, "message": "Cart updated successfully", "cart": existing_cart, "total_price": total_price, "response" : response.data}), 200
+            except Exception as e:
+                return {"error": "Couldn't update cart", "message": str(e)}, 404
+        
+        
+    except Exception as e: 
+        return {"error" : str(e)}, 500
+
+# @app.route('/cart/decrement', methods=['POST']) OLDER FUNCTION
+# def decrement_cart():
+#     """ Decrease the quantity of a product in the cart or remove it. """
+#     data = request.json
+#     product_id = data.get("productId")
+#     quantity = data.get("quantity")
+
+#     if not isinstance(product_id, int) or product_id <= 0:
+#         return jsonify({"code": 400, "error": "Invalid productId"}), 400
+
+#     if not isinstance(quantity, int) or quantity <= 0:
+#         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
+
+#     if product_id not in cart:
+#         return jsonify({"code": 404, "error": "Product not found in cart"}), 404
+
+#     # Decrease quantity or remove product if quantity goes to zero or below
+#     if cart[product_id]["quantity"] > quantity:
+#         cart[product_id]["quantity"] -= quantity
+#     else:
+#         del cart[product_id]
+
+#     total_price = sum(item["quantity"] * item["price"] for item in cart.values())
+#     return jsonify({"code": 200, "message": "Cart updated successfully", "cart": cart, "total_price": total_price}), 200
+
+@app.route('/cart/remove', methods=['PUT']) # replacement function to remove the entire product from the listing
 def decrement_cart():
     """ Decrease the quantity of a product in the cart or remove it. """
+    print("=============REMOVE PRODUCT FROM CART==================")
     data = request.json
     product_id = data.get("productId")
-    quantity = data.get("quantity")
+    user_id = data.get("user_id")
 
     if not isinstance(product_id, int) or product_id <= 0:
         return jsonify({"code": 400, "error": "Invalid productId"}), 400
 
-    if not isinstance(quantity, int) or quantity <= 0:
-        return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
+    try:
+        response = (supabase.table("carts")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        cart = response.data[0]["cart"]
+        print(cart)
 
-    if product_id not in cart:
-        return jsonify({"code": 404, "error": "Product not found in cart"}), 404
+        if str(product_id) not in cart:
+            print(str(product_id), cart)
+            return jsonify({"code": 404, "error": "Product not found in cart"}), 404
+        
+        del cart[str(product_id)]
 
-    # Decrease quantity or remove product if quantity goes to zero or below
-    if cart[product_id]["quantity"] > quantity:
-        cart[product_id]["quantity"] -= quantity
-    else:
-        del cart[product_id]
+        try:
+            response = (
+                supabase.table("carts")
+                .update({"cart": cart})
+                .eq("user_id", user_id)
+                .execute()
+            )
 
-    total_price = sum(item["quantity"] * item["price"] for item in cart.values())
-    return jsonify({"code": 200, "message": "Cart updated successfully", "cart": cart, "total_price": total_price}), 200
+            return jsonify({"code": 200, "message": "Product removed successfully", "cart": cart, "response" : response.data}), 200
+        except Exception as e:
+            return {"error": "Couldn't update removed cart", "message": str(e)}, 404
 
-@app.route('/cart', methods=['GET'])
-def view_cart():
+    except Exception as e:
+        return {"error" : "Couldn't get user's cart", "message":str(e)}, 500
+
+
+
+@app.route('/cart/<user_id>', methods=['GET'])
+def view_cart(user_id):
     """ Get all items in the cart and total price. """
-    total_price = sum(item["quantity"] * item["price"] for item in cart.values())
-    return jsonify({"code": 200, "cart": cart, "total_price": total_price}), 200
 
-@app.route('/cart/clear', methods=['DELETE'])
-def clear_cart():
+    try:
+        response = (
+            supabase.table("carts")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        total_price = sum(item["quantity"] * item["price"] for item in response.data[0]["cart"].values())
+        return jsonify({"code": 200, "cart": response.data[0]["cart"], "total_price": total_price}), 200
+    except Exception as e:
+        return {"error" : "User does not have a cart", "message" : str(e)}, 400
+
+@app.route('/cart/clear/<user_id>', methods=['DELETE'])
+def clear_cart(user_id):
     """ Clear all items from cart after successful payment """
-    cart.clear()
-    return jsonify({"code": 200, "message": "Cart has been successfully cleared."})
+    try:
+        response = (
+            supabase.table("carts")
+            .delete()
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return jsonify({"code": 200, "message": "Cart has been successfully cleared."})
+    except Exception as e:
+        return {"error" : "Could not delete user's cart", "message": str(e)}, 500
 
 # This function will process messages from RabbitMQ
 def callback(ch, method, properties, body):
