@@ -21,10 +21,10 @@ def add_to_cart():
     print(data)
     product_id = data.get("productId")
     product_details = {
-        "quantity": data.get("quantity"),
-        "price": data.get("price"),
-        "name": data.get("productName"),
-        "image_url": data.get("image_url")
+            "quantity": data.get("quantity"),
+            "price": data.get("price"),
+            "name": data.get("productName"),
+            "image_url": data.get("image_url")
     }
     user_id = data.get("user_id")
     print("completed")
@@ -34,9 +34,8 @@ def add_to_cart():
     
     print("completed1")
 
-    if not isinstance(product_details["quantity"], int) or product_details["quantity"] <= 0:
+    if not isinstance(product_details["quantity"], int) or product_details["quantity"] < 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
-    
     print("completed2")
         
     try:
@@ -48,7 +47,7 @@ def add_to_cart():
             )
         print(response.data)
 
-        if (response.data == []): #add product if no entry
+        if (response.data == [] ): #add product if no entry
             try:
                 response = supabase.table('carts').insert({
                 'user_id': user_id,
@@ -61,13 +60,10 @@ def add_to_cart():
         else:
             existing_cart = response.data[0]["cart"]  # user already has a cart
             
-            if str(product_id) in existing_cart: 
-                existing_cart[str(product_id)]["quantity"] += product_details["quantity"]
-
-                if existing_cart[str(product_id)]["quantity"] <= 0:
-                    del existing_cart[str(product_id)]
+            if product_details["quantity"] == 0:
+                del existing_cart[str(product_id)]
             else:
-                existing_cart[str(product_id)] = product_details 
+                existing_cart[str(product_id)] = product_details
 
             try:
                 response = (
@@ -83,34 +79,8 @@ def add_to_cart():
             except Exception as e:
                 return {"error": "Couldn't update cart", "message": str(e)}, 404
         
-        
     except Exception as e: 
         return {"error" : str(e)}, 500
-
-# @app.route('/cart/decrement', methods=['POST']) OLDER FUNCTION
-# def decrement_cart():
-#     """ Decrease the quantity of a product in the cart or remove it. """
-#     data = request.json
-#     product_id = data.get("productId")
-#     quantity = data.get("quantity")
-
-#     if not isinstance(product_id, int) or product_id <= 0:
-#         return jsonify({"code": 400, "error": "Invalid productId"}), 400
-
-#     if not isinstance(quantity, int) or quantity <= 0:
-#         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
-
-#     if product_id not in cart:
-#         return jsonify({"code": 404, "error": "Product not found in cart"}), 404
-
-#     # Decrease quantity or remove product if quantity goes to zero or below
-#     if cart[product_id]["quantity"] > quantity:
-#         cart[product_id]["quantity"] -= quantity
-#     else:
-#         del cart[product_id]
-
-#     total_price = sum(item["quantity"] * item["price"] for item in cart.values())
-#     return jsonify({"code": 200, "message": "Cart updated successfully", "cart": cart, "total_price": total_price}), 200
 
 @app.route('/cart/remove', methods=['PUT']) # replacement function to remove the entire product from the listing
 def decrement_cart():
@@ -198,11 +168,13 @@ def callback(ch, method, properties, body):
             message = message[0]  # Process the first item in the list
 
         action = message.get('action')
+        user_id = message.get('user_id')
+
         
         if action == "clear_cart":
             # Clear the cart
             print("Clearing the cart...")
-            cart.clear()
+            clear_cart(user_id)
             print("Cart has been cleared.")
         else:
             print(f"Unknown action: {action}")

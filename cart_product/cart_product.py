@@ -21,7 +21,7 @@ def add_to_cart():
         if not isinstance(product_id, int) or product_id <= 0:
             return jsonify({"code": 400, "error": "Invalid productId"}), 400
         
-        if not isinstance(quantity, int) or quantity <= 0:
+        if not isinstance(quantity, int) or quantity < 0:
             return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
 
         # Fetch product details from Product Microservice
@@ -72,39 +72,6 @@ def add_to_cart():
             "message": "Internal error in cart-product service",
             "error": error_message
         }), 500
-
-
-# @app.route("/cart-product/decrement", methods=['POST'])
-# def decrement_cart_item():
-#     """ Handles decreasing the quantity of an item in the cart by a specific amount. 
-#         If quantity reaches 0, the item is removed. 
-#     """
-#     try:
-#         data = request.json
-#         product_id = data.get("productId")
-#         quantity = data.get("quantity")
-
-#         if not isinstance(product_id, int) or product_id <= 0:
-#             return jsonify({"code": 400, "error": "Invalid productId"}), 400
-
-#         if not isinstance(quantity, int) or quantity <= 0:
-#             return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
-
-#         # Forward the request to Cart Microservice
-#         cart_response = invoke_http(f"{CART_SERVICE_URL}/decrement", method="POST", json={"productId": product_id, "quantity": quantity})
-#         return jsonify(cart_response), cart_response.get("code", 500)
-
-#     except Exception as e:
-#         exc_type, exc_obj, exc_tb = sys.exc_info()
-#         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-#         error_message = f"{str(e)} at {exc_type}: {fname}: line {exc_tb.tb_lineno}"
-#         print(error_message)
-
-#         return jsonify({
-#             "code": 500,
-#             "message": "Internal error in cart-product service",
-#             "error": error_message
-#         }), 500
 
 
 
