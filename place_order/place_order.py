@@ -6,24 +6,14 @@ import json
 import threading
 from utils.invokes import invoke_http
 from utils.send_notif import notify_user
+import utils.amqp_lib as rabbit
+import utils.amqp_setup as setup
 
 app = Flask(__name__)
 
 # Microservice URLs
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
 PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
-
-# Initialize AMQP variables for consumption from payment.py
-EXCHANGE_NAME = "payment_exchange" 
-QUEUE_NAME = "payment_queue"
-ROUTING_KEY = "payment_success"
-
-# Initialize AMQP variables for publishing to cart
-ORDER_EXCHANGE_NAME = "order_topic"
-
-# Initialize Routing Keys
-CART_ROUTING_KEY = "order.clear"
-PRODUCT_ROUTING_KEY = "order.reduce"
 
 @app.route("/place_order", methods=['POST'])
 def place_order():
@@ -103,92 +93,107 @@ def processPlaceOrder(user_id):
             "cart_result": cart_result,
             "payment_result": payment_result
         }
+    
 
-# This function will be used to process messages from RabbitMQ
+# RabbitMQ code
+
+# AMQP Configuration
+RABBITMQ_HOST = "rabbitmq"
+RABBITMQ_PORT = 5672
+
+# Exchange and Queue Names
+EXCHANGE_NAME = "payment_exchange"
+QUEUE_NAME = "payment_queue"
+ROUTING_KEY = "payment_success"
+
+ORDER_EXCHANGE_NAME = "order_topic"
+CART_ROUTING_KEY = "order.clear"
+PRODUCT_ROUTING_KEY = "order.reduce"
+
+CART_SERVICE_URL = "http://cart-service/api/cart"  # Update with actual cart service URL
+
+
 def callback(ch, method, properties, body):
+    """Process messages from RabbitMQ."""
     message = json.loads(body)
-    payment_id = message.get('paymentID')
-    status = message.get('status')
-    user_id = message.get('userID')
+    payment_id = message.get("paymentID")
+    status = message.get("status")
+    user_id = message.get("userID")
 
     print(f"Received message from {QUEUE_NAME}: {message}")
 
     if status == "successful":
-        # Prepare message to be sent to cart service
-        cart_message = {
-            "userID": user_id,
-            "action": "clear_cart"
-        }
+        # Prepare message to clear cart
+        cart_message = {"user_id": user_id, "action": "clear_cart"}
 
         # Retrieve cart details from the service
-        cart_result = invoke_http(CART_SERVICE_URL, method='GET')
+        cart_result = invoke_http(CART_SERVICE_URL, method="GET")
         if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
             print("Failed to retrieve cart for reducing stock")
             return
 
-        updated_cart = cart_result.get("cart")  # Extract cart details
+        updated_cart = cart_result.get("cart")
 
-        # Prepare message to be sent to product service
+        # Prepare product stock reduction message
         product_message = [
             {"productId": int(product["productId"]), "stock": int(product["quantity"])}
             for product in updated_cart.values()
         ]
 
-        # Establish connection to AMQP
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-        channel = connection.channel()
+        # Publish messages to cart and product services
+        try:
+            connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, ORDER_EXCHANGE_NAME, "topic")
 
-        # Declare the exchange
-        channel.exchange_declare(exchange=ORDER_EXCHANGE_NAME, exchange_type='topic', durable=True)
+            # Publish message to clear the cart
+            print(f"Publishing message to clear cart for user {user_id}")
+            channel.basic_publish(
+                exchange=ORDER_EXCHANGE_NAME,
+                routing_key=CART_ROUTING_KEY,
+                body=json.dumps(cart_message),
+                properties=pika.BasicProperties(delivery_mode=2),
+            )
 
-        # Publish message to clear the cart
-        channel.queue_declare(queue="cart_queue", durable=True)
-        channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="cart_queue", routing_key=CART_ROUTING_KEY)
-        print(f"Publishing message to clear cart for user {user_id}")
-        channel.basic_publish(
-            exchange=ORDER_EXCHANGE_NAME,
-            routing_key=CART_ROUTING_KEY,
-            body=json.dumps(cart_message),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
+            # Publish message to reduce stock
+            print(f"Publishing message to reduce stock for products: {product_message}")
+            channel.basic_publish(
+                exchange=ORDER_EXCHANGE_NAME,
+                routing_key=PRODUCT_ROUTING_KEY,
+                body=json.dumps(product_message),
+                properties=pika.BasicProperties(delivery_mode=2),
+            )
 
-        # Publish message to reduce stock in the product service
-        channel.queue_declare(queue="product_queue", durable=True)
-        channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="product_queue", routing_key=PRODUCT_ROUTING_KEY)
-        print(f"Publishing message to reduce stock for products: {product_message}")
-        channel.basic_publish(
-            exchange=ORDER_EXCHANGE_NAME,
-            routing_key=PRODUCT_ROUTING_KEY,
-            body=json.dumps(product_message),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
-
-        connection.close()
+            rabbit.close(connection, channel)
+        except Exception as e:
+            print(f"Error publishing messages: {e}")
 
 
-# Start consuming messages from RabbitMQ
 def consume_payment_messages():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
-
-    # Declare the exchange (ensure it exists)
-    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct')
-
-    # Declare and bind the queue to the exchange with the routing key
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
-    channel.queue_bind(exchange=EXCHANGE_NAME, queue=QUEUE_NAME, routing_key=ROUTING_KEY)
-
-    # Set up the consumer with the callback function
-    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=True)
-
-    print(f"Waiting for messages from '{EXCHANGE_NAME}' with routing key '{ROUTING_KEY}'...")
-    channel.start_consuming()
+    """Start consuming messages from the payment queue."""
+    rabbit.start_consuming(
+        hostname=RABBITMQ_HOST,
+        port=RABBITMQ_PORT,
+        exchange_name=EXCHANGE_NAME,
+        exchange_type="direct",
+        queue_name=QUEUE_NAME,
+        callback=callback,
+    )
 
 # Function to run the Flask app
 def run_flask_app():
     app.run(host='0.0.0.0', port=5301)
 
 if __name__ == '__main__':
+
+    setup.setup_rabbitmq(
+    hostname=RABBITMQ_HOST,
+    port=RABBITMQ_PORT,
+    exchange_name=ORDER_EXCHANGE_NAME,
+    exchange_type="topic",
+    queues={
+        "payment_confirmation_queue": "payment.confirmation",
+        "order_queue": "order.*",
+        "payment_queue": "payment_success"
+    })
     # Start the Flask app in a separate thread
     flask_thread = threading.Thread(target=run_flask_app)
     flask_thread.start()

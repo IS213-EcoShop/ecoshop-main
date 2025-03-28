@@ -41,9 +41,7 @@ def close(connection, channel):
     connection.close()
 
 
-def start_consuming(
-    hostname, port, exchange_name, exchange_type, queue_name, callback
-):
+def start_consuming(hostname, port, exchange_name, exchange_type, queue_name, callback):
     while True:
         try:
             connection, channel = connect(

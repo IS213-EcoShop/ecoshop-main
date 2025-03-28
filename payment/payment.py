@@ -103,10 +103,10 @@ def stripe_webhook():
             # If no endpoint secret, just parse the payload as JSON
             event = json.loads(payload)
     except json.decoder.JSONDecodeError as e:
-        print('⚠️ Webhook error while parsing the request: ' + str(e))
+        print('Webhook error while parsing the request: ' + str(e))
         return jsonify(success=False), 400
     except stripe.error.SignatureVerificationError as e:
-        print('⚠️ Webhook signature verification failed: ' + str(e))
+        print('Webhook signature verification failed: ' + str(e))
         return jsonify(success=False), 400
 
     # Handle the event
