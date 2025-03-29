@@ -98,7 +98,7 @@ services:
     image: mitchshona/intermediary:latest
     restart: always
     environment:
-      PYTHONBUFFERED: 1
+      PYTHONUNBUFFERED: 1
       PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
     networks:
       - esd-net
