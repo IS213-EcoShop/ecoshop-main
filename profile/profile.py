@@ -1,8 +1,7 @@
 import logging as log
 from flask import Flask, request, jsonify
-from utils.invokes import invoke_http 
+import utils.amqp_lib as rabbit
 from utils.supabase import get_supabase
-from utils.send_notif import notify_user
 
 app = Flask(__name__)
 
@@ -11,12 +10,17 @@ log.basicConfig(level=log.DEBUG)
 
 supabase = get_supabase()
 
+# RabbitMQ 
+RABBITMQ_HOST = "rabbitmq"
+RABBITMQ_PORT = 5672
+NOTIF_EXCHANGE_NAME = 'notification_exchange'
+
 @app.route('/signup', methods=['POST'])
 def create_user():
     """
     Create a new user.
     """
-    log.info("read")
+    log.info("Received signup request")
     data = request.json
     email = data.get('email')
     password = data.get('password')
@@ -28,19 +32,35 @@ def create_user():
         return jsonify({"error": "Email and password are required"}), 400
 
     try:
+        # Insert user into Supabase
         response = supabase.table('users').insert({
             'name': name,
-            'password':password,
+            'password': password,
             'email': email
         }).execute()
 
-        notify_user(email, "welcome to our platform!", {"name": name})
+        # Establish connection to RabbitMQ
+        connection, channel = rabbit.connect(
+            RABBITMQ_HOST, 
+            RABBITMQ_PORT, 
+            NOTIF_EXCHANGE_NAME, 
+            "topic"
+        )
+        
+        rabbit.publish_message(
+            channel, 
+            NOTIF_EXCHANGE_NAME, 
+            "email.welcome", 
+            {'email': email, 'name': name}
+        )
 
+        log.info(f"User {email} created successfully.")
         return jsonify({"status_code": 200, "status": "success", "message": "User created successfully"}), 200
 
     except Exception as e:
-            print("Error:", str(e))
-            return jsonify({"status_code": 400, "status": "error", "message": str(e)}) ,400
+        log.error(f"Error creating user: {str(e)}")
+        return jsonify({"status_code": 400, "status": "error", "message": str(e)}), 400
+
 
 
 @app.route('/create_profile/<user_id>', methods=['PUT'])
@@ -136,4 +156,14 @@ def get_profile(user_id):
 #         return jsonify({"status_code": 400, "status": "error", "message": str(e)}) ,400
 
 if __name__ == '__main__':
+    NOTIF_QUEUES = {"notification_queue" : "email.*"}
+
+    rabbit.connect(
+        RABBITMQ_HOST, 
+        RABBITMQ_PORT, 
+        NOTIF_EXCHANGE_NAME, 
+        "topic", 
+        NOTIF_QUEUES
+    )
+
     app.run(host='0.0.0.0', port=5001, debug=True)

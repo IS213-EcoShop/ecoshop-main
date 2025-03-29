@@ -3,15 +3,19 @@ import pika
 import json
 from flask import Flask, jsonify, request
 from utils.supabase import get_supabase
+import utils.amqp_lib as rabbit
 
 
 supabase = get_supabase()
 
+RABBITMQ_HOST = "rabbitmq"
+RABBITMQ_PORT = 5672
+
+CART_QUEUE_NAME = "cart_queue"
+PLACE_ORDER_EXCHANGE_NAME = "place_order_exchange"
 
 app = Flask(__name__)
 
-ORDER_EXCHANGE_NAME = "order_topic"
-CART_BINDING_KEY = "order.clear"
 
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
@@ -182,21 +186,6 @@ def callback(ch, method, properties, body):
         print(f"Error processing message: {e}")
 
 
-# Start consuming messages from RabbitMQ
-def consume_order_messages():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
-
-    # Declare the exchange and queue to ensure they're created
-    channel.exchange_declare(exchange=ORDER_EXCHANGE_NAME, exchange_type='topic', durable=True)
-    channel.queue_declare(queue="cart_queue", durable=True)
-    channel.queue_bind(exchange=ORDER_EXCHANGE_NAME, queue="cart_queue", routing_key=CART_BINDING_KEY)
-
-    # Set up the consumer with the callback function
-    channel.basic_consume(queue="cart_queue", on_message_callback=callback, auto_ack=True)
-
-    print("Waiting for messages from RabbitMQ...")
-    channel.start_consuming()
 
 # Function to run the Flask app
 def run_flask_app():
@@ -207,5 +196,7 @@ if __name__ == '__main__':
     flask_thread = threading.Thread(target=run_flask_app)
     flask_thread.start()
 
-    # Start the RabbitMQ consumer in the main thread
-    consume_order_messages()
+    # IS A CONSUMER
+    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", {CART_QUEUE_NAME:""})
+
+    rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", CART_QUEUE_NAME, callback=callback)

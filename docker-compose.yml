@@ -37,6 +37,7 @@ services:
       FLASK_APP: send_email.py
     volumes:
       - ./send_email:/usr/src/app
+      - ./utils:/usr/src/app/utils
     networks:
       - esd-network
     restart: always

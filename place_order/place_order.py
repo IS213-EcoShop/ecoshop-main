@@ -3,17 +3,26 @@ import sys
 from flask import Flask, request, jsonify
 import pika
 import json
-import threading
 from utils.invokes import invoke_http
-from utils.send_notif import notify_user
 import utils.amqp_lib as rabbit
-import utils.amqp_setup as setup
+import threading
 
 app = Flask(__name__)
 
 # Microservice URLs
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
 PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
+
+# RabbitMQ code
+RABBITMQ_HOST = "rabbitmq"
+RABBITMQ_PORT = 5672
+
+# Exchange and Queue Names
+PAYMENT_EXCHANGE_NAME = "payment_exchange"
+PAYMENT_QUEUE_NAME = "payment_queue"
+PAYMENT_ROUTING_KEY = "payment_success"
+
+PLACE_ORDER_EXCHANGE_NAME = "place_order_exchange"
 
 @app.route("/place_order", methods=['POST'])
 def place_order():
@@ -30,15 +39,6 @@ def place_order():
 
         # Process the order through Cart and Payment Microservices
         result = processPlaceOrder(user_id)
-
-        print("\n========== Notifying User ==========")
-
-        notify_user(
-            email="utkarshtayal90@gmail.com",
-            message="order placed",
-            data={"order_id":1},
-            routing_key="email.order"
-        )
 
         return jsonify(result), result["code"]
     
@@ -95,22 +95,6 @@ def processPlaceOrder(user_id):
         }
     
 
-# RabbitMQ code
-
-# AMQP Configuration
-RABBITMQ_HOST = "rabbitmq"
-RABBITMQ_PORT = 5672
-
-# Exchange and Queue Names
-EXCHANGE_NAME = "payment_exchange"
-QUEUE_NAME = "payment_queue"
-ROUTING_KEY = "payment_success"
-
-ORDER_EXCHANGE_NAME = "order_topic"
-CART_ROUTING_KEY = "order.clear"
-PRODUCT_ROUTING_KEY = "order.reduce"
-
-CART_SERVICE_URL = "http://cart-service/api/cart"  # Update with actual cart service URL
 
 
 def callback(ch, method, properties, body):
@@ -120,7 +104,7 @@ def callback(ch, method, properties, body):
     status = message.get("status")
     user_id = message.get("userID")
 
-    print(f"Received message from {QUEUE_NAME}: {message}")
+    print(f"Received message from {PAYMENT_QUEUE_NAME}: {message}")
 
     if status == "successful":
         # Prepare message to clear cart
@@ -142,61 +126,29 @@ def callback(ch, method, properties, body):
 
         # Publish messages to cart and product services
         try:
-            connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, ORDER_EXCHANGE_NAME, "topic")
 
             # Publish message to clear the cart
             print(f"Publishing message to clear cart for user {user_id}")
-            channel.basic_publish(
-                exchange=ORDER_EXCHANGE_NAME,
-                routing_key=CART_ROUTING_KEY,
-                body=json.dumps(cart_message),
-                properties=pika.BasicProperties(delivery_mode=2),
-            )
-
+            #
             # Publish message to reduce stock
             print(f"Publishing message to reduce stock for products: {product_message}")
-            channel.basic_publish(
-                exchange=ORDER_EXCHANGE_NAME,
-                routing_key=PRODUCT_ROUTING_KEY,
-                body=json.dumps(product_message),
-                properties=pika.BasicProperties(delivery_mode=2),
-            )
+            #
+
+            connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
+
+            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction"})
 
             rabbit.close(connection, channel)
         except Exception as e:
             print(f"Error publishing messages: {e}")
 
-
-def consume_payment_messages():
-    """Start consuming messages from the payment queue."""
-    rabbit.start_consuming(
-        hostname=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
-        exchange_name=EXCHANGE_NAME,
-        exchange_type="direct",
-        queue_name=QUEUE_NAME,
-        callback=callback,
-    )
-
-# Function to run the Flask app
 def run_flask_app():
     app.run(host='0.0.0.0', port=5301)
 
 if __name__ == '__main__':
 
-    setup.setup_rabbitmq(
-    hostname=RABBITMQ_HOST,
-    port=RABBITMQ_PORT,
-    exchange_name=ORDER_EXCHANGE_NAME,
-    exchange_type="topic",
-    queues={
-        "payment_confirmation_queue": "payment.confirmation",
-        "order_queue": "order.*",
-        "payment_queue": "payment_success"
-    })
-    # Start the Flask app in a separate thread
     flask_thread = threading.Thread(target=run_flask_app)
     flask_thread.start()
 
-    # Start the RabbitMQ consumer in the main thread
-    consume_payment_messages()
+    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
+    rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PAYMENT_EXCHANGE_NAME,"topic",PAYMENT_QUEUE_NAME, callback=callback)
