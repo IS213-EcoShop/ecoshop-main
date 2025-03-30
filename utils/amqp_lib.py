@@ -8,7 +8,7 @@ def connect(hostname, port, exchange_name, exchange_type,queues ={}, max_retries
     while retries < max_retries:
         retries += 1
         try:
-            print(f"Connecting to AMQP broker {hostname}:{port}...")
+            print(f"=========== Connecting to AMQP broker {hostname}:{port} for {exchange_name}... ===========")
             connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
                     host=hostname,
@@ -21,7 +21,7 @@ def connect(hostname, port, exchange_name, exchange_type,queues ={}, max_retries
             channel = connection.channel()
 
             # Declare the exchange explicitly if it doesn't exist
-            print(f"Declaring exchange: {exchange_name}")
+            print(f"=========== Declaring exchange: {exchange_name} ===========")
             channel.exchange_declare(
                 exchange=exchange_name,
                 exchange_type=exchange_type,
@@ -30,9 +30,9 @@ def connect(hostname, port, exchange_name, exchange_type,queues ={}, max_retries
 
             if queues:
                 for queue_name, routing_key in queues.items():
-                    print(f"Declaring queue: {queue_name}")
+                    print(f"=========== Declaring queue: {queue_name} for {exchange_name} ===========")
                     channel.queue_declare(queue=queue_name, durable=True)
-                    print(f"Binding queue {queue_name} to exchange {exchange_name} with routing key {routing_key}")
+                    print(f"=========== Binding queue {queue_name} to {exchange_name} with routing key {routing_key} ===========")
                     channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=routing_key)
 
             return connection, channel
@@ -62,7 +62,7 @@ def start_consuming(hostname, port, exchange_name, exchange_type, queue_name, ca
                 exchange_type=exchange_type,
             )
 
-            print(f"Consuming from queue: {queue_name}")
+            print(f"=========== Consuming from queue: {queue_name} ===========")
             # Use manual acknowledgment (auto_ack=False)
             channel.basic_consume(
                 queue=queue_name,

@@ -108,10 +108,9 @@ def callback(ch, method, properties, body):
 
     if status == "successful":
         # Prepare message to clear cart
-        cart_message = {"user_id": user_id, "action": "clear_cart"}
 
         # Retrieve cart details from the service
-        cart_result = invoke_http(CART_SERVICE_URL, method="GET")
+        cart_result = invoke_http(f"{CART_SERVICE_URL}/{int(user_id)}", method="GET")
         if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
             print("Failed to retrieve cart for reducing stock")
             return
@@ -136,7 +135,7 @@ def callback(ch, method, properties, body):
 
             connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
 
-            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction"})
+            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id})
 
             rabbit.close(connection, channel)
         except Exception as e:
@@ -151,4 +150,5 @@ if __name__ == '__main__':
     flask_thread.start()
 
     rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
+
     rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PAYMENT_EXCHANGE_NAME,"topic",PAYMENT_QUEUE_NAME, callback=callback)

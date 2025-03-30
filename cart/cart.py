@@ -23,39 +23,38 @@ def add_to_cart():
     print("==================ADDING TO CART========================")
     data = request.json
     print(data)
-    product_id = data.get("productId")
-    product_details = {
-            "quantity": data.get("quantity"),
-            "price": data.get("price"),
-            "name": data.get("productName"),
-            "image_url": data.get("image_url")
-    }
+    product = data.get("product")
+    quantity = data.get("quantity")
     user_id = data.get("user_id")
-    print("completed")
+
+    print("RECEIVED PRODUCT TO ADD")
+    product_id = product["productId"]
 
     if not isinstance(product_id, int) or product_id <= 0:
         return jsonify({"code": 400, "error": "Invalid productId"}), 400
     
-    print("completed1")
 
-    if not isinstance(product_details["quantity"], int) or product_details["quantity"] < 0:
+    if not isinstance(quantity, int) or quantity < 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
-    print("completed2")
+
+    del product["Stock"]
+    product["quantity"] = quantity
         
     try:
         response = (
-                supabase.table("carts")
-                .select("*")
-                .eq("user_id", user_id)
-                .execute()
-            )
+            supabase.table("carts")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        print("RETRIEVED CART")
         print(response.data)
 
         if (response.data == [] ): #add product if no entry
             try:
                 response = supabase.table('carts').insert({
                 'user_id': user_id,
-                'cart':{product_id : product_details}
+                'cart':{product_id : product}
                 }).execute()
                 return {"response":response.data}, 200
             except Exception as e:
@@ -64,10 +63,10 @@ def add_to_cart():
         else:
             existing_cart = response.data[0]["cart"]  # user already has a cart
             
-            if product_details["quantity"] == 0:
+            if quantity == 0:
                 del existing_cart[str(product_id)]
             else:
-                existing_cart[str(product_id)] = product_details
+                existing_cart[str(product_id)] = product
 
             try:
                 response = (
@@ -77,7 +76,7 @@ def add_to_cart():
                     .execute()
                 )
 
-                total_price = sum(item["quantity"] * item["price"] for item in existing_cart.values())
+                total_price = sum(item["quantity"] * item["Price"] for item in existing_cart.values())
 
                 return jsonify({"code": 200, "message": "Cart updated successfully", "cart": existing_cart, "total_price": total_price, "response" : response.data}), 200
             except Exception as e:
@@ -142,7 +141,7 @@ def view_cart(user_id):
             .execute()
         )
 
-        total_price = sum(item["quantity"] * item["price"] for item in response.data[0]["cart"].values())
+        total_price = sum(item["quantity"] * item["Price"] for item in response.data[0]["cart"].values())
         return jsonify({"code": 200, "cart": response.data[0]["cart"], "total_price": total_price}), 200
     except Exception as e:
         return {"error" : "User does not have a cart", "message" : str(e)}, 400
@@ -167,24 +166,16 @@ def callback(ch, method, properties, body):
         message = json.loads(body)
         print(f"Received message: {message}")
         
-        if isinstance(message, list):
-            print("Message is a list. Processing first item.")
-            message = message[0]  # Process the first item in the list
-
-        action = message.get('action')
         user_id = message.get('user_id')
 
-        
-        if action == "clear_cart":
-            # Clear the cart
-            print("Clearing the cart...")
-            clear_cart(user_id)
-            print("Cart has been cleared.")
-        else:
-            print(f"Unknown action: {action}")
+        print("Clearing the cart...")
+        clear_cart(user_id)
+        print("Cart has been cleared.")
+
     except Exception as e:
         print(f"Error processing message: {e}")
-
+    finally:
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
 
 # Function to run the Flask app
@@ -192,11 +183,12 @@ def run_flask_app():
     app.run(host='0.0.0.0', port=5201)
 
 if __name__ == '__main__':
+    #REDUNDANCY 
+    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", {CART_QUEUE_NAME: ""})
+
     # Start the Flask app in a separate thread
     flask_thread = threading.Thread(target=run_flask_app)
     flask_thread.start()
 
     # IS A CONSUMER
-    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", {CART_QUEUE_NAME:""})
-
     rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", CART_QUEUE_NAME, callback=callback)

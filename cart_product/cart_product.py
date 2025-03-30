@@ -39,9 +39,6 @@ def add_to_cart():
         if not product:
             return jsonify({"code": 404, "error": "Product data not found"}), 404
 
-        product_name = product.get("Name")
-        price = product.get("Price")
-        image_url = product.get("ImageURL")
         stock = product.get("Stock")
 
         if quantity > stock:
@@ -49,11 +46,8 @@ def add_to_cart():
 
         # Forward the request to Cart Microservice
         cart_payload = {
-            "productId": product_id,
+            "product": product,
             "quantity": quantity,
-            "productName": product_name,
-            "price": price,
-            "image_url": image_url,
             "user_id": userID
         }
 

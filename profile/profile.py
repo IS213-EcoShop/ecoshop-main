@@ -54,8 +54,11 @@ def create_user():
             {'email': email, 'name': name}
         )
 
+        connection.close()
+        
         log.info(f"User {email} created successfully.")
         return jsonify({"status_code": 200, "status": "success", "message": "User created successfully"}), 200
+    
 
     except Exception as e:
         log.error(f"Error creating user: {str(e)}")

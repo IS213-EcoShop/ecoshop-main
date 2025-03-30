@@ -91,6 +91,7 @@ def get_user_payments(userID):
 # Handle Stripe Webhook
 @app.route('/payment/webhook', methods=['POST'])
 def stripe_webhook():
+    print("========== PAYMENT WEBHOOK ==========")
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
     endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
@@ -133,11 +134,11 @@ def stripe_webhook():
                 'userID': response.data[0]['userID']
             }
             
-            print(f"Publishing message to direct exchange '{PAYMENT_EXCHANGE_NAME}' with routing key='{PAYMENT_ROUTING_KEY}'")
+            print(f"Publishing message to topic exchange '{PAYMENT_EXCHANGE_NAME}' with routing key='{PAYMENT_ROUTING_KEY}'")
             
             rabbit.publish_message(channel,PAYMENT_EXCHANGE_NAME, PAYMENT_ROUTING_KEY, message)
             
-            connection.close()
+            connection.close()  
 
         else:
             print(f"No matching payment found in Supabase for session ID: {session['id']}")
