@@ -4,12 +4,13 @@ import requests
 from flask import Flask
 import threading
 import logging
+import utils.amqp_lib as rabbit
 
 # RabbitMQ Connection Details
-RABBITMQ_HOST = 'rabbitmq'  # Ensure this matches the service name in docker-compose.yml
-EXCHANGE_NAME = "order_topic"  # Exchange used in place_order.py
-QUEUE_NAME = "product_queue"   # Queue where stock reduction messages are sent
-PRODUCT_ROUTING_KEY = "order.reduce"  # Routing key for stock reduction messages
+RABBITMQ_HOST = 'rabbitmq'  
+RABBITMQ_PORT = 5672
+PRODUCT_QUEUE_NAME = "product_queue"   
+PLACE_ORDER_EXCHANGE_NAME = "place_order_exchange"
 
 # Product Microservice API
 PRODUCT_SERVICE_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
@@ -34,7 +35,8 @@ def reduce_stock(product_id, stock):
 def callback(ch, method, properties, body):
     """Processes incoming AMQP messages and invokes stock reduction API."""
     try:
-        message = json.loads(body)
+        body = json.loads(body)
+        message = body.get("products")
         logger.info(f"Received stock reduction message: {message}")
 
         if isinstance(message, list):  # Message format: List of {"productId": X, "stock": Y}
@@ -50,21 +52,10 @@ def callback(ch, method, properties, body):
 
     except json.JSONDecodeError:
         logger.error(f"Failed to decode message: {body}")
+    finally:
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        
 
-def consume_product_messages():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
-
-    # Declare the exchange and queue for product stock reduction
-    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='topic', durable=True)
-    channel.queue_declare(queue="product_queue", durable=True)
-    channel.queue_bind(exchange=EXCHANGE_NAME, queue="product_queue", routing_key=PRODUCT_ROUTING_KEY)
-
-    # Set up the consumer with the callback function
-    channel.basic_consume(queue="product_queue", on_message_callback=callback, auto_ack=True)
-
-    logger.info("Waiting for product stock reduction messages...")
-    channel.start_consuming()
 
 def run_flask_app():
     app.run(host='0.0.0.0', port=5203, debug=False)
@@ -75,4 +66,6 @@ if __name__ == '__main__':
     flask_thread.start()
 
     # Start the RabbitMQ consumer in the main thread
-    consume_product_messages()
+    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", {PRODUCT_QUEUE_NAME: ""})
+
+    rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", PRODUCT_QUEUE_NAME, callback=callback)

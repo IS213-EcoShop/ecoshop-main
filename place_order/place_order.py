@@ -108,7 +108,6 @@ def callback(ch, method, properties, body):
 
     if status == "successful":
         # Prepare message to clear cart
-
         # Retrieve cart details from the service
         cart_result = invoke_http(f"{CART_SERVICE_URL}/{int(user_id)}", method="GET")
         if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
@@ -117,25 +116,19 @@ def callback(ch, method, properties, body):
 
         updated_cart = cart_result.get("cart")
 
-        # Prepare product stock reduction message
+        # Publish messages to cart and product services
         product_message = [
             {"productId": int(product["productId"]), "stock": int(product["quantity"])}
             for product in updated_cart.values()
-        ]
-
-        # Publish messages to cart and product services
+            ]
         try:
 
-            # Publish message to clear the cart
-            print(f"Publishing message to clear cart for user {user_id}")
+            # Publish message to clear the cart and reduce stock
+            print(f"Publishing message to clear cart for user {user_id} and reduce stock")
             #
-            # Publish message to reduce stock
-            print(f"Publishing message to reduce stock for products: {product_message}")
-            #
-
             connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
 
-            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id})
+            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id, "products": product_message})
 
             rabbit.close(connection, channel)
         except Exception as e:

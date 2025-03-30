@@ -146,9 +146,18 @@ def view_cart(user_id):
     except Exception as e:
         return {"error" : "User does not have a cart", "message" : str(e)}, 400
 
+
 @app.route('/cart/clear/<user_id>', methods=['DELETE'])
 def clear_cart(user_id):
     """ Clear all items from cart after successful payment """
+    try:
+        clear_user_cart(user_id)
+        return jsonify({"code": 200, "message": "Cart has been successfully cleared."})
+    except Exception as e:
+        return {"error" : "Could not delete user's cart", "message": str(e)}, 500
+    
+def clear_user_cart(user_id):
+    """ Clear all items from cart in Supabase """
     try:
         response = (
             supabase.table("carts")
@@ -156,9 +165,10 @@ def clear_cart(user_id):
             .eq("user_id", user_id)
             .execute()
         )
-        return jsonify({"code": 200, "message": "Cart has been successfully cleared."})
+        print(f"Cart cleared for user {user_id}.")
     except Exception as e:
-        return {"error" : "Could not delete user's cart", "message": str(e)}, 500
+        print(f"Error clearing cart for user {user_id}: {str(e)}")
+
 
 # This function will process messages from RabbitMQ
 def callback(ch, method, properties, body):
@@ -166,10 +176,10 @@ def callback(ch, method, properties, body):
         message = json.loads(body)
         print(f"Received message: {message}")
         
-        user_id = message.get('user_id')
+        user_id = message.get('userID')
 
         print("Clearing the cart...")
-        clear_cart(user_id)
+        clear_user_cart(user_id)
         print("Cart has been cleared.")
 
     except Exception as e:
