@@ -133,6 +133,9 @@ def callback(ch, method, properties, body):
             rabbit.close(connection, channel)
         except Exception as e:
             print(f"Error publishing messages: {e}")
+        finally:
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+
 
 def run_flask_app():
     app.run(host='0.0.0.0', port=5301)
@@ -143,5 +146,6 @@ if __name__ == '__main__':
     flask_thread.start()
 
     rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
+    rabbit.connect("rabbitmq",5672,PAYMENT_EXCHANGE_NAME,"topic",{PAYMENT_QUEUE_NAME:PAYMENT_ROUTING_KEY})
 
     rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PAYMENT_EXCHANGE_NAME,"topic",PAYMENT_QUEUE_NAME, callback=callback)

@@ -1,51 +1,51 @@
 services:
-  # profile-service:
-  #   build:
-  #     context: .
-  #     dockerfile: profile/Dockerfile
-  #   ports:
-  #     - "5001:5001"
-  #   env_file:
-  #     - .env
-  #   restart: always
-  #   environment:
-  #     FLASK_ENV: development
-  #     FLASK_APP: profile.py
-  #   volumes:
-  #     - ./profile:/usr/src/app
-  #     - ./utils:/usr/src/app/utils
-  #   networks:
-  #     - esd-network
-  #   develop:
-  #     watch:
-  #       - action: sync
-  #         path: ./profile
-  #         target: ./profile
+  profile-service:
+    build:
+      context: .
+      dockerfile: profile/Dockerfile
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    restart: always
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: profile.py
+    volumes:
+      - ./profile:/usr/src/app
+      - ./utils:/usr/src/app/utils
+    networks:
+      - esd-network
+    develop:
+      watch:
+        - action: sync
+          path: ./profile
+          target: ./profile
 
-  # send_email:
-  #   build:
-  #     context: .
-  #     dockerfile: send_email/Dockerfile
-  #   depends_on:
-  #     - rabbitmq
-  #   ports:
-  #     - "5002:5002"
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     FLASK_ENV: development
-  #     FLASK_APP: send_email.py
-  #   volumes:
-  #     - ./send_email:/usr/src/app
-  #     - ./utils:/usr/src/app/utils
-  #   networks:
-  #     - esd-network
-  #   restart: always
-  #   develop:
-  #     watch:
-  #       - action: sync
-  #         path: ./send_email
-  #         target: ./send_email
+  send_email:
+    build:
+      context: .
+      dockerfile: send_email/Dockerfile
+    depends_on:
+      - rabbitmq
+    ports:
+      - "5002:5002"
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: send_email.py
+    volumes:
+      - ./send_email:/usr/src/app
+      - ./utils:/usr/src/app/utils
+    networks:
+      - esd-network
+    restart: always
+    develop:
+      watch:
+        - action: sync
+          path: ./send_email
+          target: ./send_email
 
 # copied over
   cart:
