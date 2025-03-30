@@ -6,6 +6,7 @@ from supabase import create_client, Client
 from datetime import datetime, timezone
 import pika
 import json
+import utils.amqp_lib as rabbit
 
 # Load environment variables
 load_dotenv()
@@ -21,9 +22,9 @@ supabase: Client = create_client(supabase_url, supabase_key)
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # Initialize AMQP variables
-exchange_name = "payment_exchange"
-queue_name = "payment_queue"
-routing_key = "payment_success"
+PAYMENT_EXCHANGE_NAME = "payment_exchange"
+PAYMENT_QUEUE_NAME = "payment_queue"
+PAYMENT_ROUTING_KEY = "payment_success"
 
 # Create a Payment Session
 @app.route('/payment', methods=['POST'])
@@ -90,6 +91,7 @@ def get_user_payments(userID):
 # Handle Stripe Webhook
 @app.route('/payment/webhook', methods=['POST'])
 def stripe_webhook():
+    print("========== PAYMENT WEBHOOK ==========")
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
     endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
@@ -103,10 +105,10 @@ def stripe_webhook():
             # If no endpoint secret, just parse the payload as JSON
             event = json.loads(payload)
     except json.decoder.JSONDecodeError as e:
-        print('⚠️ Webhook error while parsing the request: ' + str(e))
+        print('Webhook error while parsing the request: ' + str(e))
         return jsonify(success=False), 400
     except stripe.error.SignatureVerificationError as e:
-        print('⚠️ Webhook signature verification failed: ' + str(e))
+        print('Webhook signature verification failed: ' + str(e))
         return jsonify(success=False), 400
 
     # Handle the event
@@ -122,15 +124,8 @@ def stripe_webhook():
             print(f"Updated payment status in Supabase: {update_response}")
 
             # Send a message to RabbitMQ (place_order service will consume it)
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-            channel = connection.channel()
-
-            # Declare a direct exchange
-            channel.exchange_declare(exchange=exchange_name, exchange_type='direct')
-
-            # Declare a queue and bind it to the exchange with a routing key
-            channel.queue_declare(queue=queue_name, durable=True)
-            channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=routing_key)
+            
+            connection, channel = rabbit.connect("rabbitmq", 5672, PAYMENT_EXCHANGE_NAME, "topic")
 
             # Send the message to RabbitMQ
             message = {
@@ -139,14 +134,11 @@ def stripe_webhook():
                 'userID': response.data[0]['userID']
             }
             
-            print(f"Publishing message to direct exchange '{exchange_name}' with routing key='{routing_key}'")
-            channel.basic_publish(
-                exchange=exchange_name,
-                routing_key=routing_key,
-                body=json.dumps(message)
-            )
+            print(f"Publishing message to topic exchange '{PAYMENT_EXCHANGE_NAME}' with routing key='{PAYMENT_ROUTING_KEY}'")
             
-            connection.close()
+            rabbit.publish_message(channel,PAYMENT_EXCHANGE_NAME, PAYMENT_ROUTING_KEY, message)
+            
+            connection.close()  
 
         else:
             print(f"No matching payment found in Supabase for session ID: {session['id']}")
@@ -158,4 +150,11 @@ def stripe_webhook():
 
     
 if __name__ == '__main__':
+    rabbit.connect( #create the payment exchange name and queue
+        "rabbitmq",
+        5672,
+        PAYMENT_EXCHANGE_NAME,
+        "topic",
+        {PAYMENT_QUEUE_NAME:PAYMENT_ROUTING_KEY}
+    )
     app.run(host='0.0.0.0', port=5202, debug=True)
