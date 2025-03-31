@@ -1,0 +1,44 @@
+enum CategoryEnum {
+    FURNITURE
+    GREEN_BEAUTY
+    TECHNOLOGY
+    FASHION
+}
+
+type Product {
+    productId: Int
+    name: String
+    category: CategoryEnum
+    condition: String
+    description: String
+    image_url: String
+    price: Float
+    sustainability_points: Int
+    tag_class: String
+}
+
+type CartItem {
+    productId: Int
+    name: String
+    category: CategoryEnum
+    condition: String
+    description: String
+    image_url: String
+    price: Float
+    sustainability_points: Int
+    tag_class: String
+    quantity: Int
+}
+
+type Query {
+    cart(user_id: Int): [CartItem]
+    recommendations(user_id: Int): [Product]
+}
+
+type Mutation {
+    upload_file(file: Upload!): Boolean
+}
+
+type Subscription {
+    count(upto: Int): Int
+}

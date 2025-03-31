@@ -1,51 +1,51 @@
 services:
-  profile-service:
-    build:
-      context: .
-      dockerfile: profile/Dockerfile
-    ports:
-      - "5001:5001"
-    env_file:
-      - .env
-    restart: always
-    environment:
-      FLASK_ENV: development
-      FLASK_APP: profile.py
-    volumes:
-      - ./profile:/usr/src/app
-      - ./utils:/usr/src/app/utils
-    networks:
-      - esd-network
-    develop:
-      watch:
-        - action: sync
-          path: ./profile
-          target: ./profile
+  # profile-service:
+  #   build:
+  #     context: .
+  #     dockerfile: profile/Dockerfile
+  #   ports:
+  #     - "5001:5001"
+  #   env_file:
+  #     - .env
+  #   restart: always
+  #   environment:
+  #     FLASK_ENV: development
+  #     FLASK_APP: profile.py
+  #   volumes:
+  #     - ./profile:/usr/src/app
+  #     - ./utils:/usr/src/app/utils
+  #   networks:
+  #     - esd-network
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./profile
+  #         target: ./profile
 
-  send_email:
-    build:
-      context: .
-      dockerfile: send_email/Dockerfile
-    depends_on:
-      - rabbitmq
-    ports:
-      - "5002:5002"
-    env_file:
-      - .env
-    environment:
-      FLASK_ENV: development
-      FLASK_APP: send_email.py
-    volumes:
-      - ./send_email:/usr/src/app
-      - ./utils:/usr/src/app/utils
-    networks:
-      - esd-network
-    restart: always
-    develop:
-      watch:
-        - action: sync
-          path: ./send_email
-          target: ./send_email
+  # send_email:
+  #   build:
+  #     context: .
+  #     dockerfile: send_email/Dockerfile
+  #   depends_on:
+  #     - rabbitmq
+  #   ports:
+  #     - "5002:5002"
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     FLASK_ENV: development
+  #     FLASK_APP: send_email.py
+  #   volumes:
+  #     - ./send_email:/usr/src/app
+  #     - ./utils:/usr/src/app/utils
+  #   networks:
+  #     - esd-network
+  #   restart: always
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./send_email
+  #         target: ./send_email
 
 # copied over
   cart:
@@ -118,14 +118,50 @@ services:
       dockerfile: intermediary/intermediary.Dockerfile
     restart: always
     environment:
-      PYTHONBUFFERED: 1
+      PYTHONUNBUFFERED: 1
       PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
     networks:
       - esd-network
     depends_on:
       rabbitmq:
         condition: service_healthy    
-    
+
+  recommendation:
+    build:
+      context: .
+      dockerfile: recommendation/recommendation.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5204:5204"
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/gateway.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"  
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      cart:
+        condition: service_started
+      recommendation:
+        condition: service_started
+
   rabbitmq:
     image: "rabbitmq:management"
     container_name: "rabbitmq"
@@ -145,6 +181,7 @@ services:
       retries: 3
       start_period: 10s
       timeout: 10s
+
 
 volumes:
   rabbitmq_data:
