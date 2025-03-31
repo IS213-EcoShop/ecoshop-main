@@ -143,6 +143,25 @@ services:
       rabbitmq:
         condition: service_healthy  
 
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/gateway.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"  
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      cart:
+        condition: service_started
+      recommendation:
+        condition: service_started
+
   rabbitmq:
     image: "rabbitmq:management"
     container_name: "rabbitmq"
@@ -163,7 +182,6 @@ services:
       start_period: 10s
       timeout: 10s
 
-  
 
 volumes:
   rabbitmq_data:
