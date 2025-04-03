@@ -7,11 +7,13 @@ from datetime import datetime, timezone
 import pika
 import json
 import utils.amqp_lib as rabbit
+from utils.cors_config import enable_cors
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+enable_cors(app)
 
 # Initialize Supabase
 supabase_url = os.getenv("SUPABASE_URL")
@@ -83,7 +85,7 @@ def get_payment(paymentID):
     return jsonify(response.data[0]), 200
 
 # Retrieve all Payments by User
-@app.route('/payments/user/<int:userID>', methods=['GET'])
+@app.route('/payment/user/<int:userID>', methods=['GET'])
 def get_user_payments(userID):
     response = supabase.table("payments").select("*").eq("userID", userID).execute()
     return jsonify(response.data), 200
