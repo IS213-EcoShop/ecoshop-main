@@ -6,8 +6,10 @@ import json
 from utils.invokes import invoke_http
 import utils.amqp_lib as rabbit
 import threading
+from utils.cors_config import enable_cors
 
 app = Flask(__name__)
+enable_cors(app)
 
 # Microservice URLs
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart

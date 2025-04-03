@@ -2,8 +2,10 @@ import os
 import sys
 from flask import Flask, request, jsonify
 from utils.invokes import invoke_http
+from utils.cors_config import enable_cors
 
 app = Flask(__name__)
+enable_cors(app)
 
 # Microservice URLs
 PRODUCT_SERVICE_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/products/{}"
