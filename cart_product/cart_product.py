@@ -69,7 +69,125 @@ def add_to_cart():
             "error": error_message
         }), 500
 
+@app.route("/cart-product/increment", methods=['POST'])
+def increment_cart_item():
+    """ Handles incrementing the quantity of an item in the cart by 1 """
+    try:
+        data = request.json
+        userID = data.get("userID")
+        product_id = data.get("productId")
 
+        if not isinstance(product_id, int) or product_id <= 0:
+            return jsonify({"code": 400, "error": "Invalid productId"}), 400
+        
+        # Fetch product details from Product Microservice
+        product_response = invoke_http(PRODUCT_SERVICE_URL.format(product_id), method="GET")
+
+        print(f"Product API Response: {product_response}")  
+
+        if not product_response or not product_response.get("Result", {}).get("Success"):
+            return jsonify({"code": 404, "error": "Product not found"}), 404
+
+        # Extract the product data from the response
+        product = product_response.get("Product")
+
+        if not product:
+            return jsonify({"code": 404, "error": "Product data not found"}), 404
+
+        stock = product.get("Stock")
+
+        # Forward the request to Cart Microservice with quantity=1 (increment by 1)
+        cart_payload = {
+            "product": product,
+            "quantity": 1,  # Always increment by 1
+            "user_id": userID
+        }
+
+        cart_response = invoke_http(f"{CART_SERVICE_URL}/add", method="POST", json=cart_payload)
+        print("==============INCREMENTED CART ITEM==============")
+        return jsonify(cart_response), cart_response.get("code", 500)
+
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        error_message = f"{str(e)} at {exc_type}: {fname}: line {exc_tb.tb_lineno}"
+        print(error_message)
+
+        return jsonify({
+            "code": 500,
+            "message": "Internal error in cart-product service",
+            "error": error_message
+        }), 500
+
+@app.route("/cart-product/decrement", methods=['POST'])
+def decrement_cart_item():
+    """ Handles decrementing the quantity of an item in the cart by 1 """
+    try:
+        data = request.json
+        userID = data.get("userID")
+        product_id = data.get("productId")
+
+        if not isinstance(product_id, int) or product_id <= 0:
+            return jsonify({"code": 400, "error": "Invalid productId"}), 400
+        
+        # Get the current cart to check the current quantity
+        cart_response = invoke_http(f"{CART_SERVICE_URL}/{userID}", method="GET")
+        
+        if "error" in cart_response:
+            return jsonify({"code": 404, "error": "Cart not found"}), 404
+        
+        cart = cart_response.get("cart", {})
+        product_key = str(product_id)
+        
+        if product_key not in cart:
+            return jsonify({"code": 404, "error": "Product not found in cart"}), 404
+        
+        current_quantity = cart[product_key].get("quantity", 0)
+        
+        if current_quantity <= 1:
+            # If quantity is 1 or less, remove the item
+            remove_response = invoke_http(f"{CART_SERVICE_URL}/remove", method="PUT", 
+                                         json={"productId": product_id, "user_id": userID})
+            print("==============REMOVED CART ITEM==============")
+            return jsonify(remove_response), remove_response.get("code", 500)
+        else:
+            # Fetch product details from Product Microservice
+            product_response = invoke_http(PRODUCT_SERVICE_URL.format(product_id), method="GET")
+            
+            if not product_response or not product_response.get("Result", {}).get("Success"):
+                return jsonify({"code": 404, "error": "Product not found"}), 404
+            
+            # Extract the product data from the response
+            product = product_response.get("Product")
+            
+            if not product:
+                return jsonify({"code": 404, "error": "Product data not found"}), 404
+            
+            # Set the quantity to the new value (current - 1)
+            product["quantity"] = current_quantity - 1
+            
+            # Forward the request to Cart Microservice with the updated product
+            cart_payload = {
+                "product": product,
+                "quantity": current_quantity - 1,  # Decrement by 1
+                "user_id": userID
+            }
+            
+            cart_response = invoke_http(f"{CART_SERVICE_URL}/add", method="POST", json=cart_payload)
+            print("==============DECREMENTED CART ITEM==============")
+            return jsonify(cart_response), cart_response.get("code", 500)
+
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        error_message = f"{str(e)} at {exc_type}: {fname}: line {exc_tb.tb_lineno}"
+        print(error_message)
+
+        return jsonify({
+            "code": 500,
+            "message": "Internal error in cart-product service",
+            "error": error_message
+        }), 500
 
 @app.route("/cart-product/remove", methods=['POST'])
 def remove_from_cart():
@@ -77,13 +195,13 @@ def remove_from_cart():
     try:
         data = request.json
         product_id = data.get("productId")
-        user_id = data.get("user_id")
+        user_id = data.get("userID")
 
         if not isinstance(product_id, int) or product_id <= 0:
             return jsonify({"code": 400, "error": "Invalid productId"}), 400
 
         # Forward the request to Cart Microservice
-        cart_response = invoke_http(f"{CART_SERVICE_URL}/remove", method="PUT", json={"productId": product_id, "user_id" :user_id})
+        cart_response = invoke_http(f"{CART_SERVICE_URL}/remove", method="PUT", json={"productId": product_id, "user_id": user_id})
         return jsonify(cart_response), cart_response.get("code", 500)
 
     except Exception as e:

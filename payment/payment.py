@@ -8,6 +8,7 @@ import pika
 import json
 import utils.amqp_lib as rabbit
 from utils.cors_config import enable_cors
+from flask import render_template_string
 
 # Load environment variables
 load_dotenv()
@@ -149,6 +150,64 @@ def stripe_webhook():
         print(f"Unhandled event type: {event['type']}")
 
     return jsonify(success=True), 200
+
+# Payment success redirection
+@app.route('/payment/success', methods=['GET'])
+def order_success():
+    return render_template_string('''
+        <html>
+        <head>
+            <title>Payment Success</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    background-color: #f4f4f4;
+                    padding: 50px;
+                }
+                .container {
+                    background: white;
+                    padding: 30px;
+                    border-radius: 10px;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                    display: inline-block;
+                }
+                h1 {
+                    color: #2d6a4f;
+                }
+                p {
+                    font-size: 18px;
+                    color: #333;
+                }
+                button {
+                    background-color: #2d6a4f;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    font-size: 16px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin-top: 20px;
+                }
+                button:hover {
+                    background-color: #1b4332;
+                }
+            </style>
+            <script>
+                function closeTab() {
+                    window.close();
+                }
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Payment Received</h1>
+                <p>Thank you for buying with <strong>SustainMart</strong>. You may now close this tab.</p>
+                <button onclick="closeTab()">Close Tab</button>
+            </div>
+        </body>
+        </html>
+    ''')
 
     
 if __name__ == '__main__':

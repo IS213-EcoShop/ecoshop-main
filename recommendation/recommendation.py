@@ -7,6 +7,7 @@ import random
 import json
 from utils.invokes import invoke_http  # Your HTTP utility function
 import utils.amqp_lib as rabbit
+from utils.cors_config import enable_cors
 
 # RabbitMQ Connection Details
 RABBITMQ_HOST = 'rabbitmq'
@@ -18,6 +19,7 @@ PLACE_ORDER_EXCHANGE_NAME = "place_order_exchange"
 load_dotenv()
 
 app = Flask(__name__)
+enable_cors(app)
 
 # Initialize Supabase
 supabase_url = os.getenv("SUPABASE_URL")

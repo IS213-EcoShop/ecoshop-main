@@ -4,7 +4,8 @@ import json
 from flask import Flask, jsonify, request
 from utils.supabase import get_supabase
 import utils.amqp_lib as rabbit
-
+import time
+from utils.cors_config import enable_cors
 
 supabase = get_supabase()
 
@@ -15,7 +16,7 @@ CART_QUEUE_NAME = "cart_queue"
 PLACE_ORDER_EXCHANGE_NAME = "place_order_exchange"
 
 app = Flask(__name__)
-
+enable_cors(app)
 
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
@@ -23,6 +24,7 @@ def add_to_cart():
     print("==================ADDING TO CART========================")
     data = request.json
     print(data)
+    
     product = data.get("product")
     quantity = data.get("quantity")
     user_id = data.get("user_id")
@@ -32,41 +34,55 @@ def add_to_cart():
 
     if not isinstance(product_id, int) or product_id <= 0:
         return jsonify({"code": 400, "error": "Invalid productId"}), 400
-    
 
     if not isinstance(quantity, int) or quantity < 0:
         return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
 
-    del product["Stock"]
+    del product["Stock"]  # Remove stock field
     product["quantity"] = quantity
-        
-    try:
-        response = (
-            supabase.table("carts")
-            .select("*")
-            .eq("user_id", user_id)
-            .execute()
-        )
-        print("RETRIEVED CART")
-        print(response.data)
 
-        if (response.data == [] ): #add product if no entry
+    try:
+        # Fetch the user's cart (with retry logic to handle potential DB delay)
+        MAX_RETRIES = 2
+        RETRY_DELAY = 1  # 1 second
+        cart_response = None
+
+        for attempt in range(MAX_RETRIES):
+            cart_response = supabase.table("carts").select("*").eq("user_id", user_id).execute()
+            if cart_response.data:  # If cart exists, break the loop
+                break
+            print(f"Cart not found, retrying ({attempt+1}/{MAX_RETRIES})...")
+            time.sleep(RETRY_DELAY)
+
+        print("RETRIEVED CART:", cart_response.data)
+
+        if not cart_response.data:  # If cart does not exist, create a new cart
             try:
+                new_cart = {str(product_id): product}
                 response = supabase.table('carts').insert({
-                'user_id': user_id,
-                'cart':{product_id : product}
+                    'user_id': user_id,
+                    'cart': new_cart
                 }).execute()
-                return {"response":response.data}, 200
+                
+                print("Created new cart:", response.data)
+                return jsonify({"code": 200, "message": "Cart created successfully", "cart": new_cart}), 200
+
             except Exception as e:
-                return {"error" : "Couldn't add to cart", "message":str(e)}, 404
+                print("ERROR: Couldn't add to cart", str(e))
+                return jsonify({"code": 500, "error": "Couldn't add to cart", "message": str(e)}), 500
 
         else:
-            existing_cart = response.data[0]["cart"]  # user already has a cart
-            
+            # Retrieve existing cart safely
+            existing_cart = cart_response.data[0].get("cart", {})
+
             if quantity == 0:
-                del existing_cart[str(product_id)]
+                # Remove the product if it exists in the cart
+                if str(product_id) in existing_cart:
+                    del existing_cart[str(product_id)]
+                else:
+                    return jsonify({"code": 400, "error": "Product not in cart"}), 400
             else:
-                existing_cart[str(product_id)] = product
+                existing_cart[str(product_id)] = product  # Update cart with new product
 
             try:
                 response = (
@@ -77,13 +93,22 @@ def add_to_cart():
                 )
 
                 total_price = sum(item["quantity"] * item["Price"] for item in existing_cart.values())
+                return jsonify({
+                    "code": 200,
+                    "message": "Cart updated successfully",
+                    "cart": existing_cart,
+                    "total_price": total_price,
+                    "response": response.data
+                }), 200
 
-                return jsonify({"code": 200, "message": "Cart updated successfully", "cart": existing_cart, "total_price": total_price, "response" : response.data}), 200
             except Exception as e:
-                return {"error": "Couldn't update cart", "message": str(e)}, 404
-        
+                print("ERROR: Couldn't update cart", str(e))
+                return jsonify({"code": 500, "error": "Couldn't update cart", "message": str(e)}), 500
+
     except Exception as e: 
-        return {"error" : str(e)}, 500
+        print("ERROR: Unexpected issue", str(e))
+        return jsonify({"code": 500, "error": str(e)}), 500
+
 
 @app.route('/cart/remove', methods=['PUT']) # replacement function to remove the entire product from the listing
 def decrement_cart():
