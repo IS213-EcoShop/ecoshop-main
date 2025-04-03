@@ -80,13 +80,14 @@ def processPlaceOrder(user_id):
 
     print("\n========== Invoking the Payment Microservice ==========")
     payment_result = invoke_http(PAYMENT_SERVICE_URL, method='POST', json=payment_payload)
-
+    stripe_payment_url = payment_result.get("stripe_session_url")
     if payment_result.get("paymentID"):
         return {
             "code": 201,
             "message": "Awaiting payment",
             "order_details": updated_cart,
-            "payment_details": payment_result
+            "payment_details": payment_result,
+            "stripe_payment_url": stripe_payment_url
         }
     else:
         return {
