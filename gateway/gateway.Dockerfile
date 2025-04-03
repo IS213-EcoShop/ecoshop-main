@@ -4,6 +4,7 @@ WORKDIR /usr/src/app
 
 # Copy the requirements file first, install dependencies
 COPY ./gateway/requirements.txt ./
+COPY ./utils ./utils
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
