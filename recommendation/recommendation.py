@@ -30,7 +30,10 @@ supabase: Client = create_client(supabase_url, supabase_key)
 PRODUCTS_API_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/allproducts/"
 
 # External API endpoint for fetching single product details
-SINGLE_API_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/products/{productid}/"
+SINGLE_API_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/products/{productid}/"\
+
+# External API endpoint for fetching cart details to compare
+CART_API_URL = ""
 
 # Function to get user TagClass preferences based on quantity purchased
 def get_user_tags(user_id):
