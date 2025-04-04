@@ -33,7 +33,7 @@ PRODUCTS_API_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/r
 SINGLE_API_URL = "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/products/{productid}/"\
 
 # External API endpoint for fetching cart details to compare
-CART_API_URL = ""
+CART_API_URL = "http://cart:5201/cart/{user_id}"
 
 # Function to get user TagClass preferences based on quantity purchased
 def get_user_tags(user_id):
@@ -70,30 +70,46 @@ def record_purchase():
 # API to get recommendations for a user
 @app.route('/recommendations/<int:user_id>', methods=['GET'])
 def get_recommendations(user_id):
+    # Step 1: Get user's preferred tags
     user_tags = get_user_tags(user_id)
     if not user_tags:
         return jsonify({"message": "No recommendations available.", "status": "info", "code": 200}), 200
 
+    # Step 2: Fetch all products
     products_response = invoke_http(PRODUCTS_API_URL, "GET")
     if 'code' in products_response and products_response['code'] != 200:
         return jsonify({"message": f"Error fetching products: {products_response.get('message', 'Unknown error')}", "status": "error", "code": 500}), 500
 
     all_products = products_response.get('Products', [])
+
+    # Step 3: Fetch user's cart
+    cart_response = invoke_http(CART_API_URL.format(user_id=user_id), "GET")
+    if 'code' in cart_response and cart_response['code'] != 200:
+        return jsonify({"message": f"Error fetching cart: {cart_response.get('message', 'Unknown error')}", "status": "error", "code": 500}), 500
+
+    cart_items = cart_response.get('cart', {})
+    cart_product_ids = {int(item.get("productId")) for item in cart_items.values()}
+
+    # Step 4: Filter products based on user tags and exclude cart items
     recommendations = []
 
     for tag in user_tags:
-        tag_products = [product for product in all_products if product['TagClass'] == tag]
+        tag_products = [
+            product for product in all_products
+            if product['TagClass'] == tag and int(product['productId']) not in cart_product_ids
+        ]
         random.shuffle(tag_products)
         recommendations.extend(tag_products)
         if len(recommendations) >= 3:
             break
 
-    recommendations = recommendations[:3]  # Ensure exactly 3 recommendations
+    recommendations = recommendations[:3]  # Ensure no more than 3 are returned
 
     if not recommendations:
         return jsonify({"message": "No recommendations found for the user.", "status": "info", "code": 200}), 200
 
     return jsonify({"recommendations": recommendations, "status": "success", "code": 200}), 200
+
 
 
 def callback(ch, method, properties, body):
