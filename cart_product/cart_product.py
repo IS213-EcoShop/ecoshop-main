@@ -13,20 +13,27 @@ CART_SERVICE_URL = "http://cart:5201/cart"
 
 @app.route("/cart-product/add", methods=['POST'])
 def add_to_cart():
-    """ Handles adding an item to the cart """
+    """ Handles adding an item to the cart (increment behavior) """
     try:
         data = request.json
         userID = data.get("userID")
         product_id = data.get("productId")
-        quantity = data.get("quantity")
+        quantity = data.get("quantity", 1)  # Default to 1 if not provided
 
         if not isinstance(product_id, int) or product_id <= 0:
             return jsonify({"code": 400, "error": "Invalid productId"}), 400
         
-        if not isinstance(quantity, int) or quantity < 0:
+        if not isinstance(quantity, int) or quantity <= 0:
             return jsonify({"code": 400, "error": "Quantity must be a positive integer"}), 400
 
-        # Fetch product details from Product Microservice
+        # Step 1: Get user's current cart to determine existing quantity
+        cart_response = invoke_http(f"{CART_SERVICE_URL}/{userID}", method="GET")
+        if "error" in cart_response:
+            current_quantity = 0
+        else:
+            current_quantity = cart_response.get("cart", {}).get(str(product_id), {}).get("quantity", 0)
+
+        # Step 2: Fetch product details from Product Microservice
         product_response = invoke_http(PRODUCT_SERVICE_URL.format(product_id), method="GET")
 
         print(f"Product API Response: {product_response}")  
@@ -34,25 +41,28 @@ def add_to_cart():
         if not product_response or not product_response.get("Result", {}).get("Success"):
             return jsonify({"code": 404, "error": "Product not found"}), 404
 
-
-        # Extract the product data from the response
         product = product_response.get("Product")
-
         if not product:
             return jsonify({"code": 404, "error": "Product data not found"}), 404
 
         stock = product.get("Stock")
+        new_quantity = current_quantity + quantity
 
-        if quantity > stock:
-            return jsonify({"code": 400, "error": f"Not enough stock. Available: {stock}"}), 400
+        if new_quantity > stock:
+            return jsonify({
+                "code": 400,
+                "error": f"Not enough stock. Current in cart: {current_quantity}, Available: {stock - current_quantity}"
+            }), 400
 
-        # Forward the request to Cart Microservice
+        # Step 3: Prepare payload for cart microservice
+        product["quantity"] = new_quantity  # Full updated quantity
         cart_payload = {
             "product": product,
-            "quantity": quantity,
+            "quantity": quantity,  # Only the increment to be added
             "user_id": userID
         }
 
+        # Step 4: Forward to Cart Microservice
         cart_response = invoke_http(f"{CART_SERVICE_URL}/add", method="POST", json=cart_payload)
         print("==============ADDED TO CART==============")
         return jsonify(cart_response), cart_response.get("code", 500)
@@ -68,114 +78,35 @@ def add_to_cart():
             "message": "Internal error in cart-product service",
             "error": error_message
         }), 500
-
-@app.route("/cart-product/increment", methods=['POST'])
-def increment_cart_item():
-    """ Handles incrementing the quantity of an item in the cart by 1 """
-    try:
-        data = request.json
-        userID = data.get("userID")
-        product_id = data.get("productId")
-
-        if not isinstance(product_id, int) or product_id <= 0:
-            return jsonify({"code": 400, "error": "Invalid productId"}), 400
-        
-        # Fetch product details from Product Microservice
-        product_response = invoke_http(PRODUCT_SERVICE_URL.format(product_id), method="GET")
-
-        print(f"Product API Response: {product_response}")  
-
-        if not product_response or not product_response.get("Result", {}).get("Success"):
-            return jsonify({"code": 404, "error": "Product not found"}), 404
-
-        # Extract the product data from the response
-        product = product_response.get("Product")
-
-        if not product:
-            return jsonify({"code": 404, "error": "Product data not found"}), 404
-
-        stock = product.get("Stock")
-
-        # Forward the request to Cart Microservice with quantity=1 (increment by 1)
-        cart_payload = {
-            "product": product,
-            "quantity": 1,  # Always increment by 1
-            "user_id": userID
-        }
-
-        cart_response = invoke_http(f"{CART_SERVICE_URL}/add", method="POST", json=cart_payload)
-        print("==============INCREMENTED CART ITEM==============")
-        return jsonify(cart_response), cart_response.get("code", 500)
-
-    except Exception as e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        error_message = f"{str(e)} at {exc_type}: {fname}: line {exc_tb.tb_lineno}"
-        print(error_message)
-
-        return jsonify({
-            "code": 500,
-            "message": "Internal error in cart-product service",
-            "error": error_message
-        }), 500
+    
 
 @app.route("/cart-product/decrement", methods=['POST'])
-def decrement_cart_item():
-    """ Handles decrementing the quantity of an item in the cart by 1 """
+def decrement_cart_product():
+    """ Handles decrementing quantity of an item in the cart """
     try:
         data = request.json
-        userID = data.get("userID")
+        user_id = data.get("userID")
         product_id = data.get("productId")
 
         if not isinstance(product_id, int) or product_id <= 0:
             return jsonify({"code": 400, "error": "Invalid productId"}), 400
-        
-        # Get the current cart to check the current quantity
-        cart_response = invoke_http(f"{CART_SERVICE_URL}/{userID}", method="GET")
-        
-        if "error" in cart_response:
+
+        # Step 1: Check if the product exists in the user's cart
+        cart_response = invoke_http(f"{CART_SERVICE_URL}/{user_id}", method="GET")
+
+        if not cart_response or "cart" not in cart_response:
             return jsonify({"code": 404, "error": "Cart not found"}), 404
-        
-        cart = cart_response.get("cart", {})
-        product_key = str(product_id)
-        
-        if product_key not in cart:
+
+        if str(product_id) not in cart_response["cart"]:
             return jsonify({"code": 404, "error": "Product not found in cart"}), 404
-        
-        current_quantity = cart[product_key].get("quantity", 0)
-        
-        if current_quantity <= 1:
-            # If quantity is 1 or less, remove the item
-            remove_response = invoke_http(f"{CART_SERVICE_URL}/remove", method="PUT", 
-                                         json={"productId": product_id, "user_id": userID})
-            print("==============REMOVED CART ITEM==============")
-            return jsonify(remove_response), remove_response.get("code", 500)
-        else:
-            # Fetch product details from Product Microservice
-            product_response = invoke_http(PRODUCT_SERVICE_URL.format(product_id), method="GET")
-            
-            if not product_response or not product_response.get("Result", {}).get("Success"):
-                return jsonify({"code": 404, "error": "Product not found"}), 404
-            
-            # Extract the product data from the response
-            product = product_response.get("Product")
-            
-            if not product:
-                return jsonify({"code": 404, "error": "Product data not found"}), 404
-            
-            # Set the quantity to the new value (current - 1)
-            product["quantity"] = current_quantity - 1
-            
-            # Forward the request to Cart Microservice with the updated product
-            cart_payload = {
-                "product": product,
-                "quantity": current_quantity - 1,  # Decrement by 1
-                "user_id": userID
-            }
-            
-            cart_response = invoke_http(f"{CART_SERVICE_URL}/add", method="POST", json=cart_payload)
-            print("==============DECREMENTED CART ITEM==============")
-            return jsonify(cart_response), cart_response.get("code", 500)
+
+        # Step 2: Send decrement request to cart service
+        decrement_payload = {
+            "productId": product_id,
+            "user_id": user_id
+        }
+        response = invoke_http(f"{CART_SERVICE_URL}/decrement", method="PUT", json=decrement_payload)
+        return jsonify(response), response.get("code", 500)
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -188,6 +119,7 @@ def decrement_cart_item():
             "message": "Internal error in cart-product service",
             "error": error_message
         }), 500
+
 
 @app.route("/cart-product/remove", methods=['POST'])
 def remove_from_cart():
