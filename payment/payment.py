@@ -90,7 +90,7 @@ def get_payment(paymentID):
 def get_user_payments(userID):
     response = supabase.table("payments").select("*").eq("userID", userID).execute()
     return jsonify(response.data), 200
-    
+
 # Handle Stripe Webhook
 @app.route('/payment/webhook', methods=['POST'])
 def stripe_webhook():
@@ -101,11 +101,10 @@ def stripe_webhook():
     event = None
 
     try:
-        # If there's an endpoint secret, verify the signature
+        # Verify event with signature
         if endpoint_secret:
             event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
         else:
-            # If no endpoint secret, just parse the payload as JSON
             event = json.loads(payload)
     except json.decoder.JSONDecodeError as e:
         print('Webhook error while parsing the request: ' + str(e))
@@ -114,40 +113,51 @@ def stripe_webhook():
         print('Webhook signature verification failed: ' + str(e))
         return jsonify(success=False), 400
 
-    # Handle the event
-    if event['type'] == 'checkout.session.completed':
+    event_type = event['type']
+    print(f"Received Stripe event: {event_type}")
+
+    if event_type == 'checkout.session.completed':
         session = event['data']['object']
         print(f"Checkout session completed for session ID: {session['id']}")
 
-        # Look up the session ID in Supabase and update the payment status
         response = supabase.table("payments").select("*").eq("stripe_payment_id", session['id']).execute()
         if response.data:
-            # Update payment status in Supabase
-            update_response = supabase.table("payments").update({"payment_status": "successful"}).eq("stripe_payment_id", session['id']).execute()
+            update_response = supabase.table("payments").update(
+                {"payment_status": "successful"}).eq("stripe_payment_id", session['id']).execute()
             print(f"Updated payment status in Supabase: {update_response}")
 
-            # Send a message to RabbitMQ (place_order service will consume it)
-            
             connection, channel = rabbit.connect("rabbitmq", 5672, PAYMENT_EXCHANGE_NAME, "topic")
 
-            # Send the message to RabbitMQ
             message = {
                 'paymentID': session['id'],
                 'status': 'successful',
                 'userID': response.data[0]['userID']
             }
-            
-            print(f"Publishing message to topic exchange '{PAYMENT_EXCHANGE_NAME}' with routing key='{PAYMENT_ROUTING_KEY}'")
-            
-            rabbit.publish_message(channel,PAYMENT_EXCHANGE_NAME, PAYMENT_ROUTING_KEY, message)
-            
-            connection.close()  
 
+            print(f"Publishing message to topic exchange '{PAYMENT_EXCHANGE_NAME}' with routing key='{PAYMENT_ROUTING_KEY}'")
+            rabbit.publish_message(channel, PAYMENT_EXCHANGE_NAME, PAYMENT_ROUTING_KEY, message)
+            connection.close()
         else:
             print(f"No matching payment found in Supabase for session ID: {session['id']}")
 
+    elif event_type == 'checkout.session.expired':
+        session = event['data']['object']
+        print(f"Checkout session expired: {session['id']}")
+        supabase.table("payments").update(
+            {"payment_status": "expired"}).eq("stripe_payment_id", session['id']).execute()
+
+    elif event_type == 'payment_intent.payment_failed':
+        intent = event['data']['object']
+        session_id = intent.get('metadata', {}).get('checkout_session_id')
+        print(f"Payment failed for session: {session_id}")
+        if session_id:
+            supabase.table("payments").update(
+                {"payment_status": "failed"}).eq("stripe_payment_id", session_id).execute()
+        else:
+            print("No checkout session ID in payment_intent metadata. Cannot update Supabase.")
+
     else:
-        print(f"Unhandled event type: {event['type']}")
+        print(f"Unhandled event type: {event_type}")
 
     return jsonify(success=True), 200
 
@@ -208,6 +218,65 @@ def order_success():
         </body>
         </html>
     ''')
+
+# Payment canceled redirection
+@app.route('/payment/cancel', methods=['GET'])
+def order_cancel():
+    return render_template_string('''
+        <html>
+        <head>
+            <title>Payment Canceled</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    background-color: #f4f4f4;
+                    padding: 50px;
+                }
+                .container {
+                    background: white;
+                    padding: 30px;
+                    border-radius: 10px;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                    display: inline-block;
+                }
+                h1 {
+                    color: #d00000;
+                }
+                p {
+                    font-size: 18px;
+                    color: #333;
+                }
+                button {
+                    background-color: #d00000;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    font-size: 16px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin-top: 20px;
+                }
+                button:hover {
+                    background-color: #9d0208;
+                }
+            </style>
+            <script>
+                function closeTab() {
+                    window.close();
+                }
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Payment Canceled</h1>
+                <p>Your payment was not completed. You may try again later or return to the store.</p>
+                <button onclick="closeTab()">Close Tab</button>
+            </div>
+        </body>
+        </html>
+    ''')
+
 
     
 if __name__ == '__main__':

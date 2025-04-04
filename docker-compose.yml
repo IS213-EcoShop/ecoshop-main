@@ -93,6 +93,17 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy 
+  
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: stripe-cli
+    command: listen --api-key ${STRIPE_SECRET_KEY} --forward-to http://payment:5202/payment/webhook
+    env_file:
+      - .env
+    depends_on:
+      - payment
+    networks:
+      - esd-network
 
   place_order:
     build:

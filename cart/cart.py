@@ -166,10 +166,17 @@ def view_cart(user_id):
             .execute()
         )
 
-        total_price = sum(item["quantity"] * item["Price"] for item in response.data[0]["cart"].values())
-        return jsonify({"code": 200, "cart": response.data[0]["cart"], "total_price": total_price}), 200
+        if not response.data:
+            # No cart found for user — return empty cart
+            return jsonify({"code": 200, "cart": {}, "total_price": 0}), 200
+
+        cart_items = response.data[0]["cart"]
+        total_price = sum(item["quantity"] * item["Price"] for item in cart_items.values())
+        return jsonify({"code": 200, "cart": cart_items, "total_price": total_price}), 200
+
     except Exception as e:
-        return {"error" : "User does not have a cart", "message" : str(e)}, 400
+        return {"error" : "Failed to retrieve cart", "message" : str(e)}, 500
+
 
 
 @app.route('/cart/clear/<user_id>', methods=['DELETE'])
