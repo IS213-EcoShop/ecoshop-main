@@ -154,10 +154,10 @@ services:
       rabbitmq:
         condition: service_healthy  
 
-  gateway:
+  graphql:
     build:
       context: .
-      dockerfile: gateway/gateway.Dockerfile
+      dockerfile: graphql/graphql.Dockerfile
     restart: always
     environment:
       PYTHONUNBUFFERED: 1

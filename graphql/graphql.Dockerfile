@@ -3,14 +3,14 @@ FROM python:3-slim
 WORKDIR /usr/src/app
 
 # Copy the requirements file first, install dependencies
-COPY ./gateway/requirements.txt ./
+COPY ./graphql/requirements.txt ./
 COPY ./utils ./utils
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY ./gateway/server.py ./
-COPY ./gateway/resolvers.py ./
-COPY ./gateway/graphql_types.py ./
+COPY ./graphql/server.py ./
+COPY ./graphql/resolvers.py ./
+COPY ./graphql/graphql_types.py ./
 
 # Expose the application port
 EXPOSE 8000
