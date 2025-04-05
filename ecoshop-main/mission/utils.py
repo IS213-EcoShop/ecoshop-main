@@ -50,6 +50,7 @@ def join_mission(user_id, mission_id):
         print("[JOIN] Mission joined successfully")
     except Exception as e:
         print(f"[JOIN ERROR] {e}")
+        raise  # 👈 Rethrow to be caught in your route
 
 
 def update_mission_progress(user_id, event_type):
@@ -189,7 +190,12 @@ def get_user_missions(user_id):
             })
     return enriched
 
+from flask_cors import CORS
 
+def enable_cors(app):
+    """Enable CORS for the Flask app."""
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+    
 # import os
 # from supabase import create_client
 # from dotenv import load_dotenv
