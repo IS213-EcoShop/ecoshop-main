@@ -67,3 +67,9 @@ def get_trade_status(trade_id):
 #     except Exception as e:
 #         print("Notification failed:", e)
 #         return False
+
+from flask_cors import CORS
+
+def enable_cors(app):
+    """Enable CORS for the Flask app."""
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})

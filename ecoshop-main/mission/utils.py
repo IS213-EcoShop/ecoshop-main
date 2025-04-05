@@ -335,3 +335,9 @@ def get_user_missions(user_id):
                 "reward_points": mission['reward_points']
             })
     return enriched
+
+from flask_cors import CORS
+
+def enable_cors(app):
+    """Enable CORS for the Flask app."""
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})

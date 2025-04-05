@@ -2,3 +2,4 @@ flask
 pika
 requests
 python-dotenv
+flask_cors

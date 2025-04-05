@@ -3,3 +3,4 @@ supabase
 requests
 python-dotenv
 pika 
+flask_cors

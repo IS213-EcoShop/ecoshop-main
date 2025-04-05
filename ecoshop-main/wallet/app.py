@@ -1,8 +1,7 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from utils import credit_wallet, debit_wallet, get_wallet_balance
+from utils import credit_wallet, debit_wallet, get_wallet_balance, enable_cors
 import os
-from utils.cors_config import enable_cors
 
 load_dotenv()
 app = Flask(__name__)

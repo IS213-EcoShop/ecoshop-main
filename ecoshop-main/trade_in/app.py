@@ -1,8 +1,7 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from utils import upload_image_to_supabase, create_trade_in, get_trade_status
+from utils import upload_image_to_supabase, create_trade_in, get_trade_status, enable_cors
 import os
-from utils.cors_config import enable_cors
 
 load_dotenv()
 

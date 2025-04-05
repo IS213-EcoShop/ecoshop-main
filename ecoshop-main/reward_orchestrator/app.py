@@ -2,7 +2,7 @@ from flask import Flask
 from dotenv import load_dotenv
 from events import start_event_listener
 import os
-from utils.cors_config import enable_cors
+from utils import enable_cors
 
 
 

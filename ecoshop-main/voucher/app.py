@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
-from utils import list_voucher_templates, claim_voucher
-from utils.cors_config import enable_cors
+from utils import list_voucher_templates, claim_voucher, enable_cors
 
 app = Flask(__name__)
 enable_cors(app)

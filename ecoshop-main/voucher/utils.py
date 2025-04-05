@@ -41,3 +41,9 @@ def claim_voucher(user_id, voucher_id):
     }).eq("user_id", user_id).execute()
 
     return {"status": "Voucher claimed", "vouchers": claimed}
+
+from flask_cors import CORS
+
+def enable_cors(app):
+    """Enable CORS for the Flask app."""
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})

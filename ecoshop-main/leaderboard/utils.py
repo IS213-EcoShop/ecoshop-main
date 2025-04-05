@@ -15,7 +15,11 @@ def update_leaderboard(user_id, total_points):
 def get_top_leaderboard(limit=10):
     return supabase.table("leaderboard").select("*").order("total_points", desc=True).limit(limit).execute().data
 
+from flask_cors import CORS
 
+def enable_cors(app):
+    """Enable CORS for the Flask app."""
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
 
 
