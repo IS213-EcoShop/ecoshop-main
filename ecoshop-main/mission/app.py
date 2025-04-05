@@ -1,11 +1,10 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from utils import update_mission_progress, get_user_missions, list_all_missions, supabase, enable_cors
+from utils import update_mission_progress, get_user_missions, list_all_missions, supabase
 import os
 
 load_dotenv()
 app = Flask(__name__)
-enable_cors(app)
 
 @app.route('/mission/update', methods=['POST'])
 def update_mission():
@@ -48,6 +47,21 @@ def check_user_mission(user_id, event_type):
     except Exception as e:
         print(f"[!] Mission check error: {e}")
         return jsonify({"should_update": False}), 500
+    
+@app.route('/mission/join', methods=['POST'])
+def join_mission():
+    data = request.json
+    user_id = data.get("user_id")
+    mission_id = data.get("mission_id")
+
+    if not user_id or not mission_id:
+        return jsonify({"error": "Missing user_id or mission_id"}), 400
+
+    from utils import join_mission
+    join_mission(user_id, mission_id)
+    return jsonify({"status": "joined"}), 200
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5403)
