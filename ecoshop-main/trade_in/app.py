@@ -2,10 +2,12 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from utils import upload_image_to_supabase, create_trade_in, get_trade_status
 import os
+from utils.cors_config import enable_cors
 
 load_dotenv()
 
 app = Flask(__name__)
+enable_cors(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}

@@ -2,9 +2,11 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from utils import update_mission_progress, get_user_missions, list_all_missions, supabase
 import os
+from utils.cors_config import enable_cors
 
 load_dotenv()
 app = Flask(__name__)
+enable_cors(app)
 
 @app.route('/mission/update', methods=['POST'])
 def update_mission():

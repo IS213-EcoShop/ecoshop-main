@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 from utils import list_voucher_templates, claim_voucher
+from utils.cors_config import enable_cors
 
 app = Flask(__name__)
+enable_cors(app)
 
 @app.route("/voucher/templates", methods=["GET"])
 def get_templates():

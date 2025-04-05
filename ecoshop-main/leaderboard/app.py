@@ -1,7 +1,9 @@
 from flask import Flask, jsonify, request
 from utils import update_leaderboard, get_top_leaderboard
+from utils.cors_config import enable_cors
 
 app = Flask(__name__)
+enable_cors(app)
 
 @app.route('/leaderboard/update', methods=['POST'])
 def update():

@@ -2,11 +2,13 @@ from flask import Flask
 from dotenv import load_dotenv
 from events import start_event_listener
 import os
+from utils.cors_config import enable_cors
 
 
 
 load_dotenv()
 app = Flask(__name__)
+enable_cors(app)
 
 @app.route('/')
 def health():

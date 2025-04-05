@@ -2,9 +2,11 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from utils import credit_wallet, debit_wallet, get_wallet_balance
 import os
+from utils.cors_config import enable_cors
 
 load_dotenv()
 app = Flask(__name__)
+enable_cors(app)
 
 @app.route('/wallet/credit', methods=['POST'])
 def credit():

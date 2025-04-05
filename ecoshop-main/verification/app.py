@@ -3,9 +3,11 @@ from dotenv import load_dotenv
 from utils import list_pending_trades, update_trade_status
 import os
 from utils import supabase
+from utils.cors_config import enable_cors
 
 load_dotenv()
 app = Flask(__name__)
+enable_cors(app)
 
 @app.route('/')
 def dashboard():
