@@ -1,5 +1,4 @@
 flask
 supabase
-requests
 python-dotenv
-pika 
+pika

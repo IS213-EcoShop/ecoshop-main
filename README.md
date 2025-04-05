@@ -2,8 +2,6 @@
 
 supabase 
 
-reward_orchestrator_boilerplate.txt (not complete but should be ok)
-
 ------------------------------------------
 
 Service: `trade-in` --> Accepts product info + image upload

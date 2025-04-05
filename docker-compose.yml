@@ -15,13 +15,157 @@
 #       - ./verification/.env
 
 #version: "3.9"
+# services:
+#   trade-in:
+#     build: ./trade_in
+#     ports:
+#       - "5400:5400"
+#     env_file:
+#       - ./trade_in/.env
+
+#   verification:
+#     build: ./verification
+#     ports:
+#       - "5401:5401"
+#     env_file:
+#       - ./verification/.env
+
+
+#### 3/31
+
+
+# services:
+#   rabbitmq:
+#     image: rabbitmq:3-management
+#     ports:
+#       # - "5672:5672"   # AMQP
+#       - "15672:15672" # Management UI
+#     environment:
+#       RABBITMQ_DEFAULT_USER: guest
+#       RABBITMQ_DEFAULT_PASS: guest
+
+#   wallet:
+#     build: ./wallet
+#     ports:
+#       - "5402:5402"
+#     env_file:
+#       - ./wallet/.env
+#     depends_on:
+#       - rabbitmq
+
+#   mission:
+#     build: ./mission
+#     ports:
+#       - "5403:5403"
+#     env_file:
+#       - ./mission/.env
+#     depends_on:
+#       - rabbitmq
+
+#   leaderboard:
+#     build: ./leaderboard
+#     ports:
+#       - "5404:5404"
+#     env_file:
+#       - ./leaderboard/.env
+#     depends_on:
+#       - wallet
+
+#   reward_orchestrator:
+#     build: ./reward_orchestrator
+#     ports:
+#       - "5405:5405"
+#     env_file:
+#       - ./reward_orchestrator/.env
+#     depends_on:
+#       - rabbitmq
+#       - wallet
+#       - mission
+
+#   trade_in:
+#     build: ./trade_in
+#     ports:
+#       - "5400:5400"
+#     env_file:
+#       - ./trade_in/.env
+#     depends_on:
+#       - rabbitmq
+
+#   verification:
+#     build: ./verification
+#     ports:
+#       - "5401:5401"
+#     env_file:
+#       - ./verification/.env
+#     depends_on:
+#       - rabbitmq
+
+##########################
 services:
-  trade-in:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"   
+      - "15673:15672" 
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  wallet:
+    build: ./wallet
+    ports:
+      - "5402:5402"
+    env_file:
+      - ./wallet/.env
+    depends_on:
+      - rabbitmq
+
+  mission:
+    build: ./mission
+    ports:
+      - "5403:5403"
+    env_file:
+      - ./mission/.env
+    depends_on:
+      - rabbitmq
+
+  leaderboard:
+    build: ./leaderboard
+    ports:
+      - "5404:5404"
+    env_file:
+      - ./leaderboard/.env
+    depends_on:
+      - wallet
+
+  reward_orchestrator:
+    build: ./reward_orchestrator
+    ports:
+      - "5405:5405"
+    env_file:
+      - ./reward_orchestrator/.env
+    depends_on:
+      - rabbitmq
+      - wallet
+      - mission
+
+  voucher:
+    build: ./voucher
+    ports:
+      - "5406:5406"
+    env_file:
+      - ./voucher/.env
+    depends_on:
+      - wallet
+
+  trade_in:
     build: ./trade_in
     ports:
       - "5400:5400"
     env_file:
       - ./trade_in/.env
+    depends_on:
+      - rabbitmq
 
   verification:
     build: ./verification
@@ -29,3 +173,5 @@ services:
       - "5401:5401"
     env_file:
       - ./verification/.env
+    depends_on:
+      - rabbitmq

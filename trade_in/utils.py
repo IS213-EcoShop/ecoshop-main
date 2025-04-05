@@ -2,6 +2,7 @@ import os
 from supabase import create_client
 import requests
 from werkzeug.utils import secure_filename
+import uuid
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -10,10 +11,31 @@ EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# def upload_image_to_supabase(image_file):
+#     filename = secure_filename(image_file.filename)
+#     file_content = image_file.read()
+#     supabase.storage.from_(SUPABASE_BUCKET).upload(filename, file_content, {"content-type": image_file.mimetype})
+#     public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
+#     return filename, public_url
+
+import uuid
+from werkzeug.utils import secure_filename
+
 def upload_image_to_supabase(image_file):
-    filename = secure_filename(image_file.filename)
+    original_filename = secure_filename(image_file.filename)
+    # Generate a unique ID to avoid collisions
+    unique_prefix = str(uuid.uuid4())
+    filename = f"{unique_prefix}_{original_filename}"
+    
     file_content = image_file.read()
-    supabase.storage.from_(SUPABASE_BUCKET).upload(filename, file_content, {"content-type": image_file.mimetype})
+    
+    # Upload to Supabase
+    supabase.storage.from_(SUPABASE_BUCKET).upload(
+        filename,
+        file_content,
+        {"content-type": image_file.mimetype}
+    )
+    
     public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
     return filename, public_url
 
