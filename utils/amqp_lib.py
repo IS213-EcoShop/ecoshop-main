@@ -14,7 +14,6 @@ def connect(hostname, port, exchange_name, exchange_type,queues ={}, max_retries
                     host=hostname,
                     port=port,
                     heartbeat=300,
-                    blocked_connection_timeout=300,
                 )
             )
             print("Connected")

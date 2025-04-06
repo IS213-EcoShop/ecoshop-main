@@ -6,7 +6,7 @@ from utils.supabase import get_supabase
 app = Flask(__name__)
 
 # Simple logging configuration
-log.basicConfig(level=log.DEBUG)
+log.basicConfig(level=log.WARNING)
 
 supabase = get_supabase()
 

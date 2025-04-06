@@ -14,6 +14,7 @@ enable_cors(app)
 # Microservice URLs
 CART_SERVICE_URL = "http://cart:5201/cart"  # Cart service - Retrieve cart
 PAYMENT_SERVICE_URL = "http://payment:5202/payment"  # Payment service
+USER_SERVICE_URL = "http://profile:5001/profile"
 
 # RabbitMQ code
 RABBITMQ_HOST = "rabbitmq"
@@ -108,28 +109,32 @@ def callback(ch, method, properties, body):
     print(f"Received message from {PAYMENT_QUEUE_NAME}: {message}")
 
     if status == "successful":
-        # Prepare message to clear cart
         # Retrieve cart details from the service
         cart_result = invoke_http(f"{CART_SERVICE_URL}/{int(user_id)}", method="GET")
         if not cart_result or cart_result.get("code") != 200 or not cart_result.get("cart"):
             print("Failed to retrieve cart for reducing stock")
             return
+        
+        user_details = invoke_http(f"{USER_SERVICE_URL}/{int(user_id)}", method="GET")
+        print(user_details)
+        if not user_details or user_details.get("code") != 200 or not user_details.get("cart"):
+            print("Failed to retrieve user information")
+            return
 
         updated_cart = cart_result.get("cart")
 
-        # Publish messages to cart and product services
         product_message = [
             {"productId": int(product["productId"]), "stock": int(product["quantity"])}
             for product in updated_cart.values()
             ]
         try:
 
-            # Publish message to clear the cart and reduce stock
+            # Publish fanout message
             print(f"Publishing message to clear cart for user {user_id} and reduce stock")
             #
             connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
 
-            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id, "products": product_message})
+            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id, "products": product_message, "user_details": user_details})
 
             rabbit.close(connection, channel)
         except Exception as e:

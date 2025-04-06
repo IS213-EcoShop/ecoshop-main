@@ -1,0 +1,74 @@
+_format_version: "3.0"
+
+services:
+  - name: profile-service
+    url: http://profile-service:5001
+    routes:
+      - name: profile
+        paths:
+          - /profile
+        strip_path: false
+
+  - name: send-email
+    url: http://send_email:5002
+    routes:
+      - name: email
+        paths:
+          - /email
+        strip_path: false
+
+  - name: cart
+    url: http://cart:5201
+    routes:
+      - name: cart
+        paths:
+          - /cart
+        strip_path: false
+
+  - name: cart-product
+    url: http://cart_product:5300
+    routes:
+      - name: cart-product
+        paths:
+          - /cart-product
+        strip_path: false
+
+  - name: payment
+    url: http://payment:5202
+    routes:
+      - name: payment
+        paths:
+          - /payment
+        strip_path: false
+
+  - name: place_order
+    url: http://place_order:5301
+    routes:
+      - name: place_order
+        paths:
+          - /place_order
+        strip_path: false
+
+  - name: intermediary
+    url: http://intermediary:5203
+    routes:
+      - name: intermediary
+        paths:
+          - /intermediary
+        strip_path: false
+
+  - name: recommendation
+    url: http://recommendation:5204
+    routes:
+      - name: recommendation
+        paths:
+          - /recommendation
+        strip_path: false
+
+  - name: graphql
+    url: http://graphql:5205
+    routes:
+      - name: graphql
+        paths:
+          - /graphql
+        strip_path: false

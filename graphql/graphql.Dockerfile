@@ -12,8 +12,8 @@ COPY ./graphql/server.py ./
 COPY ./graphql/resolvers.py ./
 COPY ./graphql/graphql_types.py ./
 
-# Expose the application port
-EXPOSE 8000
+# Expose the application port 
+EXPOSE 5205
 
-# Set the command to run the application using Uvicorn (FastAPI)
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set the command to run the application using Uvicorn (FastAPI) on port 5205
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5205"]

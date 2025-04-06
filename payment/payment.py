@@ -113,6 +113,8 @@ def stripe_webhook():
         print('Webhook signature verification failed: ' + str(e))
         return jsonify(success=False), 400
 
+
+    # print(json.dumps(event, indent=2)) 
     event_type = event['type']
     print(f"Received Stripe event: {event_type}")
 

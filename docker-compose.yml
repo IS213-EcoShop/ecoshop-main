@@ -1,53 +1,52 @@
 services:
-  # profile-service:
-  #   build:
-  #     context: .
-  #     dockerfile: profile/Dockerfile
-  #   ports:
-  #     - "5001:5001"
-  #   env_file:
-  #     - .env
-  #   restart: always
-  #   environment:
-  #     FLASK_ENV: development
-  #     FLASK_APP: profile.py
-  #   volumes:
-  #     - ./profile:/usr/src/app
-  #     - ./utils:/usr/src/app/utils
-  #   networks:
-  #     - esd-network
-  #   develop:
-  #     watch:
-  #       - action: sync
-  #         path: ./profile
-  #         target: ./profile
+  profile:
+    build:
+      context: .
+      dockerfile: profile/Dockerfile
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    restart: always
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: profile.py
+    volumes:
+      - ./profile:/usr/src/app
+      - ./utils:/usr/src/app/utils
+    networks:
+      - esd-network
+    develop:
+      watch:
+        - action: sync
+          path: ./profile
+          target: ./profile
 
-  # send_email:
-  #   build:
-  #     context: .
-  #     dockerfile: send_email/Dockerfile
-  #   depends_on:
-  #     - rabbitmq
-  #   ports:
-  #     - "5002:5002"
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     FLASK_ENV: development
-  #     FLASK_APP: send_email.py
-  #   volumes:
-  #     - ./send_email:/usr/src/app
-  #     - ./utils:/usr/src/app/utils
-  #   networks:
-  #     - esd-network
-  #   restart: always
-  #   develop:
-  #     watch:
-  #       - action: sync
-  #         path: ./send_email
-  #         target: ./send_email
+  send_email:
+    build:
+      context: .
+      dockerfile: send_email/Dockerfile
+    depends_on:
+      - rabbitmq
+    ports:
+      - "5002:5002"
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: send_email.py
+    volumes:
+      - ./send_email:/usr/src/app
+      - ./utils:/usr/src/app/utils
+    networks:
+      - esd-network
+    restart: always
+    develop:
+      watch:
+        - action: sync
+          path: ./send_email
+          target: ./send_email
 
-# copied over
   cart:
     build:
       context: .
@@ -115,6 +114,7 @@ services:
       CART_SERVICE_URL: http://cart:5201/cart
       PAYMENT_SERVICE_URL: http://payment:5202/payment
       CART_PRODUCT_SERVICE_URL: http://cart_product:5300/cart-product
+      USER_SERVICE_URL: http://profile:5001/profile
     ports:
       - "5301:5301"
     networks:
@@ -162,7 +162,7 @@ services:
     environment:
       PYTHONUNBUFFERED: 1
     ports:
-      - "8000:8000"  
+      - "5205:5205"  
     env_file:
       - .env
     networks:
@@ -193,6 +193,31 @@ services:
       start_period: 10s
       timeout: 10s
 
+  kong:
+    image: kong:3.6
+    container_name: kong
+    ports:
+    - "8000:8000"   
+    - "8001:8001" 
+    environment:
+      KONG_DATABASE: "off"  # DB-less mode
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml
+    depends_on:
+      - profile
+      - send_email
+      - cart
+      - cart_product
+      - payment
+      - place_order
+      - intermediary
+      - recommendation
+      - graphql
+    networks:
+      - esd-network
 
 volumes:
   rabbitmq_data:

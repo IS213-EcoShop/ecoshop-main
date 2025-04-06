@@ -156,7 +156,7 @@ def callback(ch, method, properties, body):
         }
 
         # Call the /purchase endpoint
-        purchase_response = invoke_http("http://localhost:5204/purchase", method="POST", json=purchase_data)
+        purchase_response = invoke_http("http://recommendation:5204/purchase", method="POST", json=purchase_data)
 
         # Log response
         print("Recommendation database logging response:", purchase_response)
