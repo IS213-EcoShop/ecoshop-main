@@ -191,7 +191,7 @@ def callback(ch, method, properties, body):
         message = json.loads(body)
         print(f"Received message: {message}")
         
-        user_id = message.get('userID')
+        user_id = message["user_details"]["profile"]["user_id"]
 
         print("Clearing the cart...")
         clear_user_cart(user_id)

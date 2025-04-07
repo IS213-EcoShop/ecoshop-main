@@ -3,11 +3,13 @@ import pika
 import json
 import os
 import requests
+import utils as rabbit
 from dotenv import load_dotenv
 
 load_dotenv()
 
 RABBITMQ_HOST = "rabbitmq"
+RABBITMQ_PORT = 5672
 WALLET_SERVICE_URL = os.getenv("WALLET_SERVICE_URL", "http://wallet:5402")
 MISSION_SERVICE_URL = os.getenv("MISSION_SERVICE_URL", "http://mission:5403")
 QUEUE_NAME = "reward_orchestrator.queue"
@@ -80,23 +82,7 @@ def handle_event(event):
             print(f"[!] Wallet credit from mission failed: {e}")
 
 def start_event_listener():
-    print(f"[*] Starting event listener... Connecting to RabbitMQ at: {RABBITMQ_HOST}")
-    for i in range(10):
-        try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
-            print("[✓] Connected to RabbitMQ")
-            break
-        except pika.exceptions.AMQPConnectionError:
-            print(f"[!] RabbitMQ not ready yet. Retrying in 3s... ({i+1}/10)")
-            time.sleep(3)
-    else:
-        print("[✘] Could not connect to RabbitMQ after retries.")
-        return
-
-    channel = connection.channel()
-    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type="topic", durable=True)
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
-    channel.queue_bind(exchange=EXCHANGE_NAME, queue=QUEUE_NAME, routing_key="#")
+    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, EXCHANGE_NAME, "topic", {QUEUE_NAME: "#"})
 
     def callback(ch, method, properties, body):
         try:
@@ -107,7 +93,8 @@ def start_event_listener():
         except Exception as e:
             print(f"[!] Error processing message: {e}")
 
-    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
+    rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, EXCHANGE_NAME, "topic", QUEUE_NAME, callback)
+
     print("[*] Listening for events...")
     channel.start_consuming()
 

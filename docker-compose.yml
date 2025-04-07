@@ -21,6 +21,9 @@ services:
         - action: sync
           path: ./profile
           target: ./profile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
 
   send_email:
     build:
@@ -65,6 +68,23 @@ services:
       rabbitmq:
         condition: service_healthy  
 
+  delivery:
+    build:
+      context: .
+      dockerfile: delivery/Delivery.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5209:5209"
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
+
   cart_product:
     build:
       context: .
@@ -75,7 +95,10 @@ services:
     ports:
       - "5300:5300"
     networks:
-      - esd-network  
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
 
   payment:
     build:
@@ -203,10 +226,11 @@ services:
       - "5402:5402"
     env_file:
       - ./wallet/.env
-    depends_on:
-      - rabbitmq
     networks:
       - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
 
   mission:
     build: ./mission
@@ -214,10 +238,11 @@ services:
       - "5403:5403"
     env_file:
       - ./mission/.env
-    depends_on:
-      - rabbitmq
     networks:
       - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
 
   leaderboard:
     build: ./leaderboard
@@ -227,6 +252,7 @@ services:
       - ./leaderboard/.env
     depends_on:
       - wallet
+      - rabbitmq
     networks:
       - esd-network
 
@@ -251,6 +277,7 @@ services:
       - ./voucher/.env
     depends_on:
       - wallet
+      - rabbitmq
     networks:
       - esd-network
 
@@ -260,10 +287,12 @@ services:
       - "5400:5400"
     env_file:
       - ./trade_in/.env
-    depends_on:
-      - rabbitmq
     networks:
       - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
+      
 
   verification:
     build: ./verification
@@ -271,10 +300,11 @@ services:
       - "5401:5401"
     env_file:
       - ./verification/.env
-    depends_on:
-      - rabbitmq
     networks:
       - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
 
   kong:
     image: kong:3.6
@@ -306,6 +336,7 @@ services:
       - voucher
       - trade_in
       - verification
+      - delivery
     networks:
       - esd-network
 

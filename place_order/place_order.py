@@ -115,9 +115,13 @@ def callback(ch, method, properties, body):
             print("Failed to retrieve cart for reducing stock")
             return
         
+        user_details = invoke_http(f"{USER_SERVICE_URL}/{int(user_id)}", method="GET")
+        if not user_details:
+            print("Failed to retrieve user details")
+            return
 
         updated_cart = cart_result.get("cart")
-
+        
         product_message = [
             {"productId": int(product["productId"]), "stock": int(product["quantity"])}
             for product in updated_cart.values()
@@ -129,7 +133,7 @@ def callback(ch, method, properties, body):
             #
             connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
 
-            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id, "products": product_message})
+            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "payment_id" : payment_id, "products": product_message, "user_details" : user_details, "cart" : updated_cart})
 
             rabbit.close(connection, channel)
             print("======= Fanout Message Published =======")
