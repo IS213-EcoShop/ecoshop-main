@@ -205,6 +205,8 @@ services:
       - ./wallet/.env
     depends_on:
       - rabbitmq
+    networks:
+      - esd-network
 
   mission:
     build: ./mission
@@ -214,6 +216,8 @@ services:
       - ./mission/.env
     depends_on:
       - rabbitmq
+    networks:
+      - esd-network
 
   leaderboard:
     build: ./leaderboard
@@ -223,6 +227,8 @@ services:
       - ./leaderboard/.env
     depends_on:
       - wallet
+    networks:
+      - esd-network
 
   reward_orchestrator:
     build: ./reward_orchestrator
@@ -234,6 +240,8 @@ services:
       - rabbitmq
       - wallet
       - mission
+    networks:
+      - esd-network
 
   voucher:
     build: ./voucher
@@ -243,6 +251,8 @@ services:
       - ./voucher/.env
     depends_on:
       - wallet
+    networks:
+      - esd-network
 
   trade_in:
     build: ./trade_in
@@ -252,6 +262,8 @@ services:
       - ./trade_in/.env
     depends_on:
       - rabbitmq
+    networks:
+      - esd-network
 
   verification:
     build: ./verification
@@ -261,6 +273,8 @@ services:
       - ./verification/.env
     depends_on:
       - rabbitmq
+    networks:
+      - esd-network
 
   kong:
     image: kong:3.6

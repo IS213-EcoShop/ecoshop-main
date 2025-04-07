@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
+RABBITMQ_HOST = "rabbitmq"
 WALLET_SERVICE_URL = os.getenv("WALLET_SERVICE_URL", "http://wallet:5402")
 MISSION_SERVICE_URL = os.getenv("MISSION_SERVICE_URL", "http://mission:5403")
 QUEUE_NAME = "reward_orchestrator.queue"
