@@ -127,7 +127,6 @@ services:
     - ./place_order:/usr/src/app
     - ./utils:/usr/src/app/utils
 
-
   intermediary:
     build:
       context: .
@@ -197,6 +196,71 @@ services:
       retries: 3
       start_period: 10s
       timeout: 10s
+  
+  wallet:
+    build: ./wallet
+    ports:
+      - "5402:5402"
+    env_file:
+      - ./wallet/.env
+    depends_on:
+      - rabbitmq
+
+  mission:
+    build: ./mission
+    ports:
+      - "5403:5403"
+    env_file:
+      - ./mission/.env
+    depends_on:
+      - rabbitmq
+
+  leaderboard:
+    build: ./leaderboard
+    ports:
+      - "5404:5404"
+    env_file:
+      - ./leaderboard/.env
+    depends_on:
+      - wallet
+
+  reward_orchestrator:
+    build: ./reward_orchestrator
+    ports:
+      - "5405:5405"
+    env_file:
+      - ./reward_orchestrator/.env
+    depends_on:
+      - rabbitmq
+      - wallet
+      - mission
+
+  voucher:
+    build: ./voucher
+    ports:
+      - "5406:5406"
+    env_file:
+      - ./voucher/.env
+    depends_on:
+      - wallet
+
+  trade_in:
+    build: ./trade_in
+    ports:
+      - "5400:5400"
+    env_file:
+      - ./trade_in/.env
+    depends_on:
+      - rabbitmq
+
+  verification:
+    build: ./verification
+    ports:
+      - "5401:5401"
+    env_file:
+      - ./verification/.env
+    depends_on:
+      - rabbitmq
 
   kong:
     image: kong:3.6
@@ -221,6 +285,13 @@ services:
       - intermediary
       - recommendation
       - graphql
+      - wallet
+      - mission
+      - leaderboard
+      - reward_orchestrator
+      - voucher
+      - trade_in
+      - verification
     networks:
       - esd-network
 

@@ -1,0 +1,105 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+  <title>Trade-In Verification</title>
+</head>
+<body>
+  <h2>Pending Trade-In Requests</h2>
+  {% for trade in trades %}
+    <div style="margin-bottom: 30px;">
+      <p><strong>ID:</strong> {{ trade.id }}</p>
+      <p><strong>User:</strong> {{ trade.user_id }}</p>
+      <p><strong>Product:</strong> {{ trade.product_name }}</p>
+      <img src="{{ trade.image_url }}" width="300" alt="Trade-In Image"><br>
+      <form method="post" action="/verify/{{ trade.id }}">
+        <button name="action" value="accepted">✅ Accept</button>
+        <button name="action" value="rejected">❌ Reject</button>
+      </form>
+    </div>
+    <hr>
+  {% endfor %}
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Trade-In Verification</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 30px;
+    }
+    .trade {
+      border: 1px solid #ddd;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    img {
+      max-width: 300px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .status {
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    .pending { color: orange; }
+    .accepted { color: green; }
+    .rejected { color: red; }
+    .filter-btn {
+      margin-right: 10px;
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🧾 Trade-In Verification Dashboard</h2>
+
+  <div>
+    <button class="filter-btn" onclick="filterTrades('all')">All</button>
+    <button class="filter-btn" onclick="filterTrades('pending')">Pending</button>
+    <button class="filter-btn" onclick="filterTrades('accepted')">Accepted</button>
+    <button class="filter-btn" onclick="filterTrades('rejected')">Rejected</button>
+  </div>
+
+  <div id="trade-container">
+    {% for trade in trades %}
+      <div class="trade" data-status="{{ trade.status }}">
+        <p><strong>ID:</strong> {{ trade.id }}</p>
+        <p><strong>User:</strong> {{ trade.user_id }}</p>
+        <p><strong>Product:</strong> {{ trade.product_name }}</p>
+        <p class="status {{ trade.status }}"><strong>Status:</strong> {{ trade.status|capitalize }}</p>
+        <img src="{{ trade.image_url }}" alt="Trade-In Image"><br><br>
+
+        {% if trade.status == 'pending' %}
+          <form method="post" action="/verify/{{ trade.id }}" style="display:inline;">
+            <button name="action" value="accepted">✅ Accept</button>
+          </form>
+          <form method="post" action="/verify/{{ trade.id }}" style="display:inline;">
+            <button name="action" value="rejected">❌ Reject</button>
+          </form>
+        {% else %}
+          <p><em>Already reviewed</em></p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    function filterTrades(status) {
+      const all = document.querySelectorAll('.trade');
+      all.forEach(el => {
+        if (status === 'all' || el.dataset.status === status) {
+          el.style.display = '';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>

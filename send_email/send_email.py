@@ -84,3 +84,7 @@ if __name__ == '__main__':
     print("SEND_EMAIL INITIALISED")
     # IS A CONSUMER
     rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", NOTIF_QUEUE_NAME, callback=callback)
+
+    # send_email-1      | INFO:root:Received message: b'{"message": "complete transaction", "userID": 200, "products": [{"productId": 11, "stock": 2}]}' ================
+    # rabbitmq          | 2025-04-07 05:42:06.712040+00:00 [info] <0.962.0> closing AMQP connection (172.18.0.10:51928 -> 172.18.0.2:5672, vhost: '/', user: 'guest', duration: '21ms')
+    # send_email-1      | WARNING:root:Unhandled routing key: 

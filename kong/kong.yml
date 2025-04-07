@@ -64,3 +64,60 @@ services:
         paths:
           - /graphql
         strip_path: false
+
+  - name: wallet
+    url: http://wallter:5402
+    routes:
+      - name: wallet
+        paths:
+          - /wallet
+        strip_path: false
+
+
+  - name: mission
+    url: http://mission:5403
+    routes:
+      - name: mission
+        paths:
+          - /mission
+        strip_path: false
+
+  - name: leaderboard
+    url: http://leaderboard:5404
+    routes:
+      - name: leaderboard
+        paths:
+          - /leaderboard
+        strip_path: false
+
+  - name: reward_orchestrator
+    url: http://reward_orchestrator:5405
+    routes:
+      - name: reward_orchestrator
+        paths:
+          - /reward_orchestrator
+        strip_path: false       
+
+  - name: voucher
+    url: http://voucher:5406
+    routes:
+      - name: voucher
+        paths:
+          - /voucher
+        strip_path: false  
+
+  - name: trade_in
+    url: http://trade_in:5400
+    routes:
+      - name: trade_in
+        paths:
+          - /trade_in
+        strip_path: false  
+
+  - name: verification
+    url: http://verification:5401
+    routes:
+      - name: verification
+        paths:
+          - /verification
+        strip_path: false   
