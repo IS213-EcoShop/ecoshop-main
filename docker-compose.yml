@@ -27,7 +27,8 @@ services:
       context: .
       dockerfile: send_email/Dockerfile
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy  
     ports:
       - "5002:5002"
     env_file:
@@ -122,6 +123,10 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    volumes:
+    - ./place_order:/usr/src/app
+    - ./utils:/usr/src/app/utils
+
 
   intermediary:
     build:

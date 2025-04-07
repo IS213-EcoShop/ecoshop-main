@@ -115,11 +115,6 @@ def callback(ch, method, properties, body):
             print("Failed to retrieve cart for reducing stock")
             return
         
-        user_details = invoke_http(f"{USER_SERVICE_URL}/{int(user_id)}", method="GET")
-        print(user_details)
-        if not user_details or user_details.get("code") != 200 or not user_details.get("cart"):
-            print("Failed to retrieve user information")
-            return
 
         updated_cart = cart_result.get("cart")
 
@@ -134,9 +129,10 @@ def callback(ch, method, properties, body):
             #
             connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
 
-            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id, "products": product_message, "user_details": user_details})
+            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "userID" : user_id, "products": product_message})
 
             rabbit.close(connection, channel)
+            print("======= Fanout Message Published =======")
         except Exception as e:
             print(f"Error publishing messages: {e}")
         finally:

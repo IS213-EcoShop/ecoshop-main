@@ -1,20 +1,12 @@
 _format_version: "3.0"
 
 services:
-  - name: profile-service
-    url: http://profile-service:5001
+  - name: profile
+    url: http://profile:5001
     routes:
       - name: profile
         paths:
           - /profile
-        strip_path: false
-
-  - name: send-email
-    url: http://send_email:5002
-    routes:
-      - name: email
-        paths:
-          - /email
         strip_path: false
 
   - name: cart
