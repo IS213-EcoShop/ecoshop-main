@@ -33,7 +33,7 @@ def debit():
         return jsonify({'error': 'Insufficient points'}), 400
     return jsonify({
         'message': 'Points debited',
-        'balance': result['poin ts'],
+        'balance': result['points'],
         'total_points': result['total_points']
     }), 200
 

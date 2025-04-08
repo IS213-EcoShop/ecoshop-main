@@ -5,9 +5,11 @@ import os
 import requests
 import threading
 import utils as rabbit
+import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
+processed_events = set()
 
 # RabbitMQ
 RABBITMQ_HOST = "rabbitmq"
@@ -77,6 +79,7 @@ def handle_event(event):
 
     elif event_type == "MISSION_COMPLETED":
         points = event.get("reward_points", 0)
+        print(f"[DEBUG] Received MISSION_COMPLETED with points: {points}")
         try:
             res = requests.post(f"{WALLET_SERVICE_URL}/wallet/credit", json={
                 "user_id": user_id,
@@ -93,6 +96,15 @@ def start_event_listener():
     def callback_topic(ch, method, properties, body):
         try:
             event = json.loads(body)
+
+            # Add deduplication logic here
+            event_key = f"{event.get('type')}_{event.get('user_id')}"
+            if event_key in processed_events:
+                print(f"[WARN] Duplicate topic event detected: {event_key}")
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
+            processed_events.add(event_key)
+
             print(f"[📩 topic] Received event: {event}")
             handle_event(event)
             ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -118,6 +130,15 @@ def start_event_listener():
                 return
 
             user_id_str = str(user_id)
+
+            # Add deduplication logic here
+            event_key = f"ECO_PURCHASE_{user_id_str}"
+            if event_key in processed_events:
+                print(f"[WARN] Duplicate fanout event detected: {event_key}")
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
+            processed_events.add(event_key)
+
             print(f"[📩] [fanout] Received purchase event for user: {user_id_str}")
 
             handle_event({"type": "ECO_PURCHASE", "user_id": user_id_str})
