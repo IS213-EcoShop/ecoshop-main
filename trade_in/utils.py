@@ -1,49 +1,30 @@
 import os
 from supabase import create_client
-import requests
 from werkzeug.utils import secure_filename
 import uuid
+from flask_cors import CORS
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
-EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# def upload_image_to_supabase(image_file):
-#     filename = secure_filename(image_file.filename)
-#     file_content = image_file.read()
-#     supabase.storage.from_(SUPABASE_BUCKET).upload(filename, file_content, {"content-type": image_file.mimetype})
-#     public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
-#     return filename, public_url
-
-import uuid
-from werkzeug.utils import secure_filename
-
 def upload_image_to_supabase(image_file):
     original_filename = secure_filename(image_file.filename)
-    # Generate a unique ID to avoid collisions
     unique_prefix = str(uuid.uuid4())
     filename = f"{unique_prefix}_{original_filename}"
-    
     file_content = image_file.read()
-    
-    # Upload to Supabase
-    supabase.storage.from_(SUPABASE_BUCKET).upload(
-        filename,
-        file_content,
-        {"content-type": image_file.mimetype}
-    )
-    
+    supabase.storage.from_(SUPABASE_BUCKET).upload(filename, file_content, {"content-type": image_file.mimetype})
     public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
     return filename, public_url
 
-def create_trade_in(user_id, product_name, image_url):
+def create_trade_in(user_id, product_name, image_url, condition):
     data = {
         "user_id": user_id,
         "product_name": product_name,
         "image_url": image_url,
+        "condition": condition,
         "status": "pending"
     }
     response = supabase.table("trade_ins").insert(data).execute()
@@ -55,21 +36,9 @@ def get_trade_status(trade_id):
         return result.data[0]
     return None
 
-# def notify_user(user_id, status):
-#     try:
-#         payload = {
-#             "user_id": user_id,
-#             "subject": "Your Trade-In Status",
-#             "body": f"Your trade-in request has been {status.upper()}."
-#         }
-#         r = requests.post(EMAIL_SERVICE_URL, json=payload, timeout=5)
-#         return r.status_code == 200
-#     except Exception as e:
-#         print("Notification failed:", e)
-#         return False
-
-from flask_cors import CORS
+def get_trade_history(user_id):
+    result = supabase.table("trade_ins").select("product_name, created_at, image_url, condition, status").eq("user_id", user_id).order("created_at", desc=True).execute()
+    return result.data
 
 def enable_cors(app):
-    """Enable CORS for the Flask app."""
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})

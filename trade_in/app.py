@@ -1,6 +1,12 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from utils import upload_image_to_supabase, create_trade_in, get_trade_status, enable_cors
+from utils import (
+    upload_image_to_supabase,
+    create_trade_in,
+    get_trade_status,
+    get_trade_history,
+    enable_cors
+)
 import os
 
 load_dotenv()
@@ -18,16 +24,17 @@ def allowed_file(filename):
 def submit_trade_in():
     user_id = request.form.get('user_id')
     product_name = request.form.get('product_name')
+    condition = request.form.get('condition')
     image = request.files.get('image')
 
-    if not user_id or not product_name or not image:
+    if not user_id or not product_name or not condition or not image:
         return jsonify({'error': 'Missing required fields'}), 400
 
     if not allowed_file(image.filename):
         return jsonify({'error': 'Invalid file type'}), 400
 
     filename, image_url = upload_image_to_supabase(image)
-    new_trade = create_trade_in(user_id, product_name, image_url)
+    new_trade = create_trade_in(user_id, product_name, image_url, condition)
 
     return jsonify({
         'message': 'Trade-In submitted',
@@ -41,6 +48,11 @@ def get_status(trade_id):
     if not trade:
         return jsonify({'error': 'Trade not found'}), 404
     return jsonify(trade), 200
+
+@app.route('/trade-in/<user_id>', methods=['GET'])
+def get_history(user_id):
+    trades = get_trade_history(user_id)
+    return jsonify(trades), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5400)
