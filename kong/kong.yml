@@ -66,7 +66,7 @@ services:
         strip_path: false
 
   - name: wallet
-    url: http://wallter:5402
+    url: http://wallet:5402
     routes:
       - name: wallet
         paths:
