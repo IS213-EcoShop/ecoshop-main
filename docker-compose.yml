@@ -1,29 +1,29 @@
 services:
-  # profile:
-  #   build:
-  #     context: .
-  #     dockerfile: profile/Dockerfile
-  #   ports:
-  #     - "5001:5001"
-  #   env_file:
-  #     - .env
-  #   restart: always
-  #   environment:
-  #     FLASK_ENV: development
-  #     FLASK_APP: profile.py
-  #   volumes:
-  #     - ./profile:/usr/src/app
-  #     - ./utils:/usr/src/app/utils
-  #   networks:
-  #     - esd-network
-  #   develop:
-  #     watch:
-  #       - action: sync
-  #         path: ./profile
-  #         target: ./profile
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy  
+  profile:
+    build:
+      context: .
+      dockerfile: profile/Dockerfile
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    restart: always
+    environment:
+      FLASK_ENV: development
+      FLASK_APP: profile.py
+    volumes:
+      - ./profile:/usr/src/app
+      - ./utils:/usr/src/app/utils
+    networks:
+      - esd-network
+    develop:
+      watch:
+        - action: sync
+          path: ./profile
+          target: ./profile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
 
   send_email:
     build:
@@ -51,22 +51,22 @@ services:
           path: ./send_email
           target: ./send_email
 
-  # cart:
-  #   build:
-  #     context: .
-  #     dockerfile: cart/Cart.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #   ports:
-  #     - "5201:5201"
-  #   env_file:
-  #     - .env
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy  
+  cart:
+    build:
+      context: .
+      dockerfile: cart/Cart.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5201:5201"
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
 
   delivery:
     build:
@@ -88,120 +88,120 @@ services:
       - ./delivery/delivery.py:/usr/src/app/delivery/delivery.py
       - ./utils:/usr/src/app/utils
 
-  # cart_product:
-  #   build:
-  #     context: .
-  #     dockerfile: cart_product/cart_product.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #   ports:
-  #     - "5300:5300"
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy  
+  cart_product:
+    build:
+      context: .
+      dockerfile: cart_product/cart_product.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5300:5300"
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
 
-  # payment:
-  #   build:
-  #     context: .
-  #     dockerfile: payment/payment.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "5202:5202"
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy 
+  payment:
+    build:
+      context: .
+      dockerfile: payment/payment.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    env_file:
+      - .env
+    ports:
+      - "5202:5202"
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
   
-  # stripe-cli:
-  #   image: stripe/stripe-cli:latest
-  #   container_name: stripe-cli
-  #   command: listen --api-key ${STRIPE_SECRET_KEY} --forward-to http://payment:5202/payment/webhook
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - payment
-  #   networks:
-  #     - esd-network
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: stripe-cli
+    command: listen --api-key ${STRIPE_SECRET_KEY} --forward-to http://payment:5202/payment/webhook
+    env_file:
+      - .env
+    depends_on:
+      - payment
+    networks:
+      - esd-network
 
-  # place_order:
-  #   build:
-  #     context: .
-  #     dockerfile: place_order/place_order.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #     CART_SERVICE_URL: http://cart:5201/cart
-  #     PAYMENT_SERVICE_URL: http://payment:5202/payment
-  #     CART_PRODUCT_SERVICE_URL: http://cart_product:5300/cart-product
-  #     USER_SERVICE_URL: http://profile:5001/profile
-  #   ports:
-  #     - "5301:5301"
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   volumes:
-  #   - ./place_order:/usr/src/app
-  #   - ./utils:/usr/src/app/utils
+  place_order:
+    build:
+      context: .
+      dockerfile: place_order/place_order.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+      CART_SERVICE_URL: http://cart:5201/cart
+      PAYMENT_SERVICE_URL: http://payment:5202/payment
+      CART_PRODUCT_SERVICE_URL: http://cart_product:5300/cart-product
+      USER_SERVICE_URL: http://profile:5001/profile
+    ports:
+      - "5301:5301"
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+    - ./place_order:/usr/src/app
+    - ./utils:/usr/src/app/utils
 
-  # intermediary:
-  #   build:
-  #     context: .
-  #     dockerfile: intermediary/intermediary.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #     PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy    
+  intermediary:
+    build:
+      context: .
+      dockerfile: intermediary/intermediary.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+      PRODUCT_SERVICE_URL: "https://personal-o2kymv2n.outsystemscloud.com/SustainaMart/rest/v1/reducestock/"
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy    
 
-  # recommendation:
-  #   build:
-  #     context: .
-  #     dockerfile: recommendation/recommendation.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #   ports:
-  #     - "5204:5204"
-  #   env_file:
-  #     - .env
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy  
+  recommendation:
+    build:
+      context: .
+      dockerfile: recommendation/recommendation.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5204:5204"
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  
 
-  # graphql:
-  #   build:
-  #     context: .
-  #     dockerfile: graphql/graphql.Dockerfile
-  #   restart: always
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #   ports:
-  #     - "5205:5205"  
-  #   env_file:
-  #     - .env
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     cart:
-  #       condition: service_started
-  #     recommendation:
-  #       condition: service_started
+  graphql:
+    build:
+      context: .
+      dockerfile: graphql/graphql.Dockerfile
+    restart: always
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "5205:5205"  
+    env_file:
+      - .env
+    networks:
+      - esd-network
+    depends_on:
+      cart:
+        condition: service_started
+      recommendation:
+        condition: service_started
 
   rabbitmq:
     image: "rabbitmq:management"
@@ -223,78 +223,78 @@ services:
       start_period: 10s
       timeout: 10s
   
-  # wallet:
-  #   build: ./wallet
-  #   ports:
-  #     - "5402:5402"
-  #   env_file:
-  #     - ./wallet/.env
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy 
+  wallet:
+    build: ./wallet
+    ports:
+      - "5402:5402"
+    env_file:
+      - ./wallet/.env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
 
-  # mission:
-  #   build: ./mission
-  #   ports:
-  #     - "5403:5403"
-  #   env_file:
-  #     - ./mission/.env
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy 
+  mission:
+    build: ./mission
+    ports:
+      - "5403:5403"
+    env_file:
+      - ./mission/.env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
 
-  # leaderboard:
-  #   build: ./leaderboard
-  #   ports:
-  #     - "5404:5404"
-  #   env_file:
-  #     - ./leaderboard/.env
-  #   depends_on:
-  #     - wallet
-  #     - rabbitmq
-  #   networks:
-  #     - esd-network
+  leaderboard:
+    build: ./leaderboard
+    ports:
+      - "5404:5404"
+    env_file:
+      - ./leaderboard/.env
+    depends_on:
+      - wallet
+      - rabbitmq
+    networks:
+      - esd-network
 
-  # reward_orchestrator:
-  #   build: ./reward_orchestrator
-  #   ports:
-  #     - "5405:5405"
-  #   env_file:
-  #     - ./reward_orchestrator/.env
-  #   depends_on:
-  #     - rabbitmq
-  #     - wallet
-  #     - mission
-  #   networks:
-  #     - esd-network
+  reward_orchestrator:
+    build: ./reward_orchestrator
+    ports:
+      - "5405:5405"
+    env_file:
+      - ./reward_orchestrator/.env
+    depends_on:
+      - rabbitmq
+      - wallet
+      - mission
+    networks:
+      - esd-network
 
-  # voucher:
-  #   build: ./voucher
-  #   ports:
-  #     - "5406:5406"
-  #   env_file:
-  #     - ./voucher/.env
-  #   depends_on:
-  #     - wallet
-  #     - rabbitmq
-  #   networks:
-  #     - esd-network
+  voucher:
+    build: ./voucher
+    ports:
+      - "5406:5406"
+    env_file:
+      - ./voucher/.env
+    depends_on:
+      - wallet
+      - rabbitmq
+    networks:
+      - esd-network
 
-  # trade_in:
-  #   build: ./trade_in
-  #   ports:
-  #     - "5400:5400"
-  #   env_file:
-  #     - ./trade_in/.env
-  #   networks:
-  #     - esd-network
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy 
+  trade_in:
+    build: ./trade_in
+    ports:
+      - "5400:5400"
+    env_file:
+      - ./trade_in/.env
+    networks:
+      - esd-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy 
       
 
   verification:
@@ -309,39 +309,39 @@ services:
       rabbitmq:
         condition: service_healthy 
 
-  # kong:
-  #   image: kong:3.6
-  #   container_name: kong
-  #   ports:
-  #   - "8000:8000"   
-  #   - "8001:8001" 
-  #   environment:
-  #     KONG_DATABASE: "off"  # DB-less mode
-  #     KONG_DECLARATIVE_CONFIG: /kong/kong.yml
-  #     KONG_ADMIN_LISTEN: "0.0.0.0:8001"
-  #     KONG_PROXY_LISTEN: "0.0.0.0:8000"
-  #   volumes:
-  #     - ./kong/kong.yml:/kong/kong.yml
-  #   depends_on:
-  #     - profile
-  #     - send_email
-  #     - cart
-  #     - cart_product
-  #     - payment
-  #     - place_order
-  #     - intermediary
-  #     - recommendation
-  #     - graphql
-  #     - wallet
-  #     - mission
-  #     - leaderboard
-  #     - reward_orchestrator
-  #     - voucher
-  #     - trade_in
-  #     - verification
-  #     - delivery
-  #   networks:
-  #     - esd-network
+  kong:
+    image: kong:3.6
+    container_name: kong
+    ports:
+    - "8000:8000"   
+    - "8001:8001" 
+    environment:
+      KONG_DATABASE: "off"  # DB-less mode
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml
+    depends_on:
+      - profile
+      - send_email
+      - cart
+      - cart_product
+      - payment
+      - place_order
+      - intermediary
+      - recommendation
+      - graphql
+      - wallet
+      - mission
+      - leaderboard
+      - reward_orchestrator
+      - voucher
+      - trade_in
+      - verification
+      - delivery
+    networks:
+      - esd-network
 
 volumes:
   rabbitmq_data:
