@@ -33,7 +33,7 @@ PAYMENT_ROUTING_KEY = "payment_success"
 @app.route('/payment', methods=['POST'])
 def create_payment():
     data = request.json
-    print(f"Received request data: {data}")  # Debugging log
+    print(f"Received request data: {data}")  # Debugging logs
 
     user_id = data.get('userID')
     amount = data.get('amount')
