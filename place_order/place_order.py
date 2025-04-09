@@ -151,7 +151,9 @@ if __name__ == '__main__':
     flask_thread = threading.Thread(target=run_flask_app)
     flask_thread.start()
 
-    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
-    rabbit.connect("rabbitmq",5672,PAYMENT_EXCHANGE_NAME,"topic",{PAYMENT_QUEUE_NAME:PAYMENT_ROUTING_KEY})
+    rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout") #create fanout queue
+
+    #is redundancy 
+    rabbit.connect(RABBITMQ_HOST,RABBITMQ_PORT,PAYMENT_EXCHANGE_NAME,"topic",{PAYMENT_QUEUE_NAME:PAYMENT_ROUTING_KEY})
 
     rabbit.start_consuming(RABBITMQ_HOST, RABBITMQ_PORT, PAYMENT_EXCHANGE_NAME,"topic",PAYMENT_QUEUE_NAME, callback=callback)
