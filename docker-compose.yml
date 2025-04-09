@@ -215,11 +215,13 @@ services:
       timeout: 10s
   
   wallet:
-    build: ./wallet
+    build:
+      context: .
+      dockerfile: wallet/wallet.Dockerfile
     ports:
       - "5402:5402"
     env_file:
-      - ./wallet/.env
+      - .env
     networks:
       - esd-network
     depends_on:

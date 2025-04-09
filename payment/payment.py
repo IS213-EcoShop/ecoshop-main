@@ -33,12 +33,17 @@ PAYMENT_ROUTING_KEY = "payment_success"
 @app.route('/payment', methods=['POST'])
 def create_payment():
     data = request.json
-    print(f"Received request data: {data}")  # Debugging log
+    print(f"Received request data: {data}")  # Debugging logs
 
     user_id = data.get('userID')
     amount = data.get('amount')
     currency = data.get('currency', 'SGD')
     cart_details = data.get('cart', [])
+    
+    # Get voucher information if provided
+    voucher_id = data.get('voucherId')
+    voucher_value = data.get('voucherValue')
+    original_amount = data.get('originalAmount')
 
     try:
         # Create a Stripe Checkout session
@@ -59,8 +64,8 @@ def create_payment():
 
         print(f"Stripe session created: {session.id}")  # Debugging log
 
-        # Store payment in Supabase, including address and postal code
-        response = supabase.table("payments").insert({
+        # Prepare payment data for Supabase
+        payment_data = {
             "userID": user_id,
             "amount": amount,
             "currency": currency,
@@ -68,7 +73,17 @@ def create_payment():
             "cart_details": json.dumps(cart_details),
             "stripe_payment_id": session.id,
             "created_at": datetime.now(timezone.utc).isoformat()
-        }).execute()
+        }
+        
+        # Add voucher information if provided
+        if voucher_id:
+            payment_data["voucherId"] = voucher_id
+            payment_data["voucherValue"] = voucher_value
+            payment_data["originalAmount"] = original_amount
+            print(f"Storing voucher info: voucherId={voucher_id}, value={voucher_value}")
+
+        # Store payment in Supabase
+        response = supabase.table("payments").insert(payment_data).execute()
 
         print(f"Supabase insert response: {response}")  # Debugging log
 
@@ -113,8 +128,6 @@ def stripe_webhook():
         print('Webhook signature verification failed: ' + str(e))
         return jsonify(success=False), 400
 
-
-    # print(json.dumps(event, indent=2)) 
     event_type = event['type']
     print(f"Received Stripe event: {event_type}")
 
@@ -124,19 +137,30 @@ def stripe_webhook():
 
         response = supabase.table("payments").select("*").eq("stripe_payment_id", session['id']).execute()
         if response.data:
+            payment_data = response.data[0]
             update_response = supabase.table("payments").update(
                 {"payment_status": "successful"}).eq("stripe_payment_id", session['id']).execute()
             print(f"Updated payment status in Supabase: {update_response}")
 
             connection, channel = rabbit.connect("rabbitmq", 5672, PAYMENT_EXCHANGE_NAME, "topic")
 
+            # Create message with all necessary data including voucher information
             message = {
                 'paymentID': session['id'],
                 'status': 'successful',
-                'userID': response.data[0]['userID']
+                'userID': payment_data['userID']
             }
+            
+            # Add voucher information if it exists in the payment data
+            # These fields would have been stored when creating the payment
+            if 'voucherId' in payment_data:
+                message['voucherId'] = payment_data['voucherId']
+                message['voucherValue'] = payment_data['voucherValue']
+                message['originalAmount'] = payment_data['originalAmount']
+                print(f"Including voucher info in message: voucherId={payment_data['voucherId']}")
 
             print(f"Publishing message to topic exchange '{PAYMENT_EXCHANGE_NAME}' with routing key='{PAYMENT_ROUTING_KEY}'")
+            print(f"Message content: {json.dumps(message, indent=2)}")
             rabbit.publish_message(channel, PAYMENT_EXCHANGE_NAME, PAYMENT_ROUTING_KEY, message)
             connection.close()
         else:
@@ -214,7 +238,7 @@ def order_success():
         <body>
             <div class="container">
                 <h1>Payment Received</h1>
-                <p>Thank you for buying with <strong>SustainMart</strong>. You may now close this tab.</p>
+                <p>Thank you for buying with <strong>SustainaMart</strong>. You may now close this tab.</p>
                 <button onclick="closeTab()">Close Tab</button>
             </div>
         </body>

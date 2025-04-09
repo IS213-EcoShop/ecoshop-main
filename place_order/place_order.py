@@ -40,8 +40,12 @@ def place_order():
                 "message": "User ID is required."
             }), 400
 
+        # Get voucher information if provided
+        voucher_id = request.json.get("voucherId")
+        voucher_value = request.json.get("voucherValue", 0)
+
         # Process the order through Cart and Payment Microservices
-        result = processPlaceOrder(user_id)
+        result = processPlaceOrder(user_id, voucher_id, voucher_value)
 
         return jsonify(result), result["code"]
     
@@ -56,7 +60,7 @@ def place_order():
             "message": "place_order.py internal error: " + ex_str
         }), 500
 
-def processPlaceOrder(user_id):
+def processPlaceOrder(user_id, voucher_id=None, voucher_value=0):
     """ Retrieve cart and process the payment """
 
     print("\n========== Invoking cart microservice to retrieve the cart ==========")
@@ -72,12 +76,26 @@ def processPlaceOrder(user_id):
     updated_cart = cart_result.get("cart")
     total_price = cart_result.get("total_price")
 
+    # Apply voucher discount if provided
+    if voucher_value and float(voucher_value) > 0:
+        original_price = total_price
+        # Ensure total price doesn't go below zero
+        total_price = max(total_price - float(voucher_value), 0)
+        print(f"\n========== Applying voucher discount: ${voucher_value} ==========")
+        print(f"Original price: ${original_price}, Discounted price: ${total_price}")
+
     payment_payload = {
         "userID": user_id,
         "amount": total_price,
         "currency": "SGD",
         "cart": updated_cart
     }
+
+    # Add voucher information to payment payload if provided
+    if voucher_id:
+        payment_payload["voucherId"] = voucher_id
+        payment_payload["voucherValue"] = voucher_value
+        payment_payload["originalAmount"] = cart_result.get("total_price")  # Store original amount for reference
 
     print("\n========== Invoking the Payment Microservice ==========")
     payment_result = invoke_http(PAYMENT_SERVICE_URL, method='POST', json=payment_payload)
@@ -107,6 +125,7 @@ def callback(ch, method, properties, body):
     user_id = message.get("userID")
 
     print(f"Received message from {PAYMENT_QUEUE_NAME}: {message}")
+    print(f"Message contents: {json.dumps(message, indent=2)}")  # Add this line to debug
 
     if status == "successful":
         # Retrieve cart details from the service
@@ -127,13 +146,41 @@ def callback(ch, method, properties, body):
             for product in updated_cart.values()
             ]
         try:
-
             # Publish fanout message
-            print(f"Publishing message to clear cart for user {user_id} and reduce stock")
-            #
+            print(f"Publishing message to fanout for user {user_id}")
             connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout")
 
-            rabbit.publish_message(channel, PLACE_ORDER_EXCHANGE_NAME,"", {"message": "complete transaction", "payment_id" : payment_id, "products": product_message, "user_details" : user_details, "cart" : updated_cart})
+            # Include voucher information in the message if it was in the original payment
+            voucher_info = {}
+            
+            # Check for voucher information in the message
+            if "voucherId" in message:
+                print(f"Found voucher info in message: voucherId={message.get('voucherId')}")
+                voucher_info = {
+                    "voucherId": message.get("voucherId"),
+                    "voucherValue": message.get("voucherValue"),
+                    "originalAmount": message.get("originalAmount")
+                }
+                print(f"Prepared voucher_info: {voucher_info}")
+            
+            # Create the message payload
+            payload = {
+                "message": "complete transaction", 
+                "payment_id": payment_id, 
+                "products": product_message, 
+                "user_details": user_details, 
+                "cart": updated_cart,
+                "voucher_info": voucher_info
+            }
+            
+            print(f"Publishing message with payload: {json.dumps(payload, indent=2)}")
+            
+            rabbit.publish_message(
+                channel, 
+                PLACE_ORDER_EXCHANGE_NAME,
+                "", 
+                payload
+            )
 
             rabbit.close(connection, channel)
             print("======= Fanout Message Published =======")

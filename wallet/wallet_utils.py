@@ -62,6 +62,53 @@ def get_wallet_balance(user_id):
         "total_points": wallet.get('total_points', 0)
     }
 
+def get_voucher_balance(user_id):
+    voucher = get_or_create_wallet(user_id)
+    return {
+        "vouchers": voucher.get('vouchers', 0)
+    }
+
+def delete_voucher_from_wallet(user_id, voucher_id):
+    """Delete a single instance of a voucher from a user's wallet."""
+    try:
+        # Get the current wallet
+        result = supabase.table("wallet").select("*").eq("user_id", user_id).execute()
+        
+        if not result.data:
+            print(f"No wallet found for user {user_id}")
+            return None
+            
+        wallet = result.data[0]
+        vouchers = wallet.get('vouchers', [])
+        
+        # Find the index of the first occurrence of the voucher
+        voucher_index = None
+        for i, voucher in enumerate(vouchers):
+            if voucher.get('id') == voucher_id:
+                voucher_index = i
+                break
+        
+        # If voucher not found, return None
+        if voucher_index is None:
+            print(f"Voucher {voucher_id} not found in wallet for user {user_id}")
+            return None
+        
+        # Remove only the first occurrence of the voucher
+        removed_voucher = vouchers.pop(voucher_index)
+        
+        # Update the wallet
+        update_result = supabase.table("wallet").update({
+            "vouchers": vouchers
+        }).eq("user_id", user_id).execute()
+        
+        print(f"Deleted one instance of voucher {voucher_id} from wallet for user {user_id}")
+        print(f"Removed voucher details: {removed_voucher}")
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting voucher: {e}")
+        return None
+
 
 # import os
 # from supabase import create_client
