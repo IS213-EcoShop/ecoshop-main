@@ -109,10 +109,10 @@ services:
   - name: trade_in
     url: http://trade_in:5400
     routes:
-      - name: trade_in
+      - name: trade-in
         paths:
-          - /trade_in
-        strip_path: false  
+          - /trade-in
+        strip_path: false
 
   - name: verification
     url: http://verification:5401
