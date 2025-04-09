@@ -30,7 +30,7 @@ enable_cors(app)
 
 sustainamart_details = {
     "profile":{
-        "address": "81 Victoria Street",
+        "address": "2 Bayfront Avenue 018972",
         "email": "utkarshtayal90@gmail.com",
         "name": "utkarsh",
         "password": "password",
