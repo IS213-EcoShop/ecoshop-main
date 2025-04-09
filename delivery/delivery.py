@@ -18,6 +18,9 @@ PLACE_ORDER_EXCHANGE_NAME = "place_order_exchange"
 VERIFICATION_EXCHANGE_NAME = "verification_exchange"
 DELIVERY_VERIFICATION_QUEUE_NAME = "delivery_verification_queue"
 
+EMAIL_EXCHANGE = 'email_exchange'
+EMAIL_QUEUE_NAME = 'send_email_queue'
+
 USER_SERVICE_URL = "http://profile:5001/profile"
 
 EXTERNAL_URL = "https://personal-slqn7xxm.outsystemscloud.com/ESDProject_VanNova_/rest/JohnnyAPI"
@@ -25,12 +28,23 @@ EXTERNAL_URL = "https://personal-slqn7xxm.outsystemscloud.com/ESDProject_VanNova
 app = Flask(__name__)
 enable_cors(app)
 
+sustainamart_details = {
+    "profile":{
+        "address": "81 Victoria Street",
+        "email": "utkarshtayal90@gmail.com",
+        "name": "utkarsh",
+        "password": "password",
+        "phone": "+6500000000",
+        "user_id": 000
+    }
+}
+
 def do_order_delivery(body): #for orders
     user_details = body["user_details"]
     payment_id = body["payment_id"]
 
     try: #handle creation of order
-        response = create_order(user_details)
+        response = create_order(user_details, sustainamart_details)
         print("Order created")
     except Exception as e:
         error_message = f"Error while creating order: {str(e)}"
@@ -44,19 +58,34 @@ def do_order_delivery(body): #for orders
         print("Attempting to insert delivery to Supabase...")
         supabase.table("delivery").insert({"user_id": user_details["profile"]["user_id"], "payment_id": payment_id, "order_id":response["order"]["id"] }).execute()
         print("Delivery inserted successfully.")
-        return jsonify({"code": 200, "message": "Delivery added"}), 200
     except Exception as e:
         error_message = f"Error while inserting delivery into database: {str(e)}"
         return jsonify({"code": 500, "error": str(e)}), 500
+    
+
+    message = {
+        "message" : body["message"],
+        "user_details" : user_details,
+        "cart" :body["cart"],
+        "delivery" : response["order"]
+    }
+
+    connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, EMAIL_EXCHANGE, "direct", {EMAIL_QUEUE_NAME: "send_email"}) #redundancy
+
+    print("SENDING TO EMAIL MS")
+    rabbit.publish_message(channel, EMAIL_EXCHANGE, "send_email", message)
+
+    rabbit.close(connection, channel)
+    return jsonify({"code": 200, "message": "Delivery for Order added, Sent to Email MS"}), 200
 
 #create an order
-def create_order(body):
-    print(body)
-    user_profile = body["profile"]
+def create_order(receiver, sender): #accept two, receiver and sender
+    receiver_profile = receiver["profile"]
+    sender_profile = sender["profile"]
 
     headers = {
         "X-Api-Key": "G1T46tsdgdjl9fsKDd5zsvnwmdjosDmrufbs93susadLHDvjfhbnwtTRbsnucnrb",
-        "X-User-Id": str(user_profile["user_id"]),
+        "X-User-Id": str(receiver_profile["user_id"]),
         "Content-Type": "application/json"
     }
 
@@ -64,13 +93,13 @@ def create_order(body):
     order = {
         "order": {
             "orderDetails": "Sustainamart Order",
-            "fromAddressLine1": "81 Victoria Street",
+            "fromAddressLine1": sender_profile["address"],
             "fromAddressLine2": None,
-            "fromZipCode": "188065",
-            "toAddressLine1": user_profile["address"],
+            "fromZipCode": "188065", #assume spliced from address
+            "toAddressLine1": receiver_profile["address"],
             "toAddressLine2": None,
             "toZipCode": "680456", #assume spliced from address
-            "userId": "200"
+            "userId": receiver_profile["user_id"]
             }
         }
     
@@ -80,10 +109,47 @@ def create_order(body):
 
 def do_verified_delivery(body):
     user_id = body["user_id"]
+    trade_id = body["trade"]["id"]
+    response = {} 
+    response["order"] = "" #incase
     print(user_id)
     user_details = invoke_http(f"{USER_SERVICE_URL}/{int(user_id)}", method="GET")
-    print(user_details)
 
+    if body["message"] == "Trade Successful":
+        try: #handle creation of order
+            response = create_order(sustainamart_details, user_details)
+            print("Order created")
+        except Exception as e:
+            error_message = f"Error while creating order: {str(e)}"
+            return jsonify({"error": error_message}), 500 
+
+        try:
+            if not response:
+                raise ValueError("Order creation failed, response is invalid.")
+            
+            print(response)
+            print("Attempting to insert delivery to Supabase...")
+            supabase.table("delivery").insert({"user_id": sustainamart_details["profile"]["user_id"], "trade_id": trade_id, "order_id":response["order"]["id"] }).execute()
+            print("Delivery inserted successfully.")
+        except Exception as e:
+            error_message = f"Error while inserting delivery into database: {str(e)}"
+            return jsonify({"code": 500, "error": str(e)}), 500
+
+
+    message = {
+        "message" : body["message"],
+        "user_details" : user_details,
+        "trade" :body["trade"],
+        "delivery" : response["order"] 
+    }
+
+    connection, channel = rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, EMAIL_EXCHANGE, "direct", {EMAIL_QUEUE_NAME: "send_email"}) #redundancy
+
+    print("SENDING TO EMAIL MS")
+    rabbit.publish_message(channel, EMAIL_EXCHANGE, "send_email", message)
+
+    rabbit.close(connection, channel)
+    return jsonify({"code": 200, "message": "Delivery for Verification added, Sent to Email MS"}), 200
 
 
 
@@ -114,7 +180,10 @@ def run_flask_app():
 
 if __name__ == '__main__':
     rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, PLACE_ORDER_EXCHANGE_NAME, "fanout", {DELIVERY_PLACE_ORDER_QUEUE_NAME: ""})
+
     rabbit.connect(RABBITMQ_HOST, RABBITMQ_PORT, VERIFICATION_EXCHANGE_NAME, "direct", {DELIVERY_VERIFICATION_QUEUE_NAME: "send_verification"})
+
+
 
     # Start the Flask app in a separate thread
     flask_thread = threading.Thread(target=run_flask_app)

@@ -16,11 +16,6 @@ services:
       - ./utils:/usr/src/app/utils
     networks:
       - esd-network
-    develop:
-      watch:
-        - action: sync
-          path: ./profile
-          target: ./profile
     depends_on:
       rabbitmq:
         condition: service_healthy  
@@ -45,11 +40,7 @@ services:
     networks:
       - esd-network
     restart: always
-    develop:
-      watch:
-        - action: sync
-          path: ./send_email
-          target: ./send_email
+
 
   cart:
     build:
