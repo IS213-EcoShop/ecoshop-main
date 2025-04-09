@@ -151,7 +151,21 @@ def do_verified_delivery(body):
     rabbit.close(connection, channel)
     return jsonify({"code": 200, "message": "Delivery for Verification added, Sent to Email MS"}), 200
 
+@app.route('/delivery/<int:user_id>/<order_id>', methods=['GET'])
+def get_delivery(user_id,order_id):
 
+    headers = {
+        "X-Api-Key": "G1T46tsdgdjl9fsKDd5zsvnwmdjosDmrufbs93susadLHDvjfhbnwtTRbsnucnrb",
+        "X-User-Id": str(user_id),
+    }
+
+    try:
+        response = invoke_http(f"{EXTERNAL_URL}/orderTracking/{order_id}","GET",None,headers=headers)
+
+        print(response)
+        return jsonify(response), 200
+    except Exception as e:
+        return {"error" :e}, 404
 
 # This function will process messages from RabbitMQ
 def callback(ch, method, properties, body):
