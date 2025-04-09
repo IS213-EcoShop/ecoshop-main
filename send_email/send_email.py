@@ -80,7 +80,8 @@ def send_order_email(body):
                 "email": user_profile["email"],
                 "name": user_profile["name"],
                 "total": f"{total:.2f}",
-                "orders": orders
+                "orders": orders,
+                "delivery": body["delivery"]
             }
         }
 
